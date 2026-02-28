@@ -1,5 +1,4 @@
 import { SplitManager } from './ui/split-manager.js';
-import { TurtlesimCanvas } from './ui/turtlesim-canvas.js';
 import { TutorialPanel } from './ui/tutorial-panel.js';
 
 export function createApp(root) {
@@ -17,28 +16,47 @@ export function createApp(root) {
         <aside class="tutorial-panel" id="tutorial-panel"></aside>
 
         <section class="workspace">
-          <!-- SplitManager가 여기에 터미널을 동적으로 생성 -->
           <div class="panes-container" id="panes-container"></div>
-
-          <!-- Turtlesim 캔버스 (하단 고정) -->
-          <div class="turtlesim-row">
-            <div class="turtlesim-pane">
-              <div class="pane-label">
-                <span class="pane-label-dot pane-label-dot--green"></span>Turtlesim
-              </div>
-              <div class="turtlesim-container" id="turtlesim-container"></div>
-            </div>
-          </div>
         </section>
       </main>
     </div>`;
 
   new TutorialPanel(document.getElementById('tutorial-panel'));
 
-  const canvas = new TurtlesimCanvas(document.getElementById('turtlesim-container'));
-  const onTurtlesimStart = node => {
-    canvas.attachNode(node);
-    node.onStopped = () => canvas.detachNode();
+  const bc = new BroadcastChannel('turtlesim');
+  let popupWin = null;
+
+  const onTurtlesimStart = (node, killTerminal) => {
+    if (popupWin && !popupWin.closed) popupWin.close();
+    popupWin = window.open(
+      'turtlesim-popup.html',
+      'turtlesim',
+      'width=560,height=560,resizable=yes'
+    );
+
+    let latestState = { ...node.state };
+    let latestPath  = [...node.path];
+
+    bc.onmessage = e => {
+      if (e.data.type === 'ready') {
+        // 팝업 로드 완료 → 현재 상태 전송
+        bc.postMessage({ type: 'state', state: latestState, path: latestPath });
+      } else if (e.data.type === 'close') {
+        // 팝업 X 버튼 → 터미널 노드 종료
+        killTerminal();
+      }
+    };
+
+    node.onStateChange = (state, path) => {
+      latestState = { ...state };
+      latestPath  = path;
+      bc.postMessage({ type: 'state', state, path });
+    };
+    node.onStopped = () => {
+      bc.postMessage({ type: 'stop' });
+      bc.onmessage = null;
+      popupWin = null;
+    };
   };
 
   new SplitManager(document.getElementById('panes-container'), onTurtlesimStart);

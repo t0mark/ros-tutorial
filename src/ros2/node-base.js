@@ -10,6 +10,7 @@ export class SimulatedNode {
     this._timers = [];
     this.onStopped = null;
     ros2.registerNode(this.id, nodeName);
+    ros2.registerNodeInstance(this.id, this);
   }
 
   _addTimer(fn, ms) {

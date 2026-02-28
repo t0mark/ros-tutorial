@@ -77,8 +77,21 @@ export class XtermTerminal {
         executeCommand(
           cmd,
           line => this._term.writeln(line),
-          mode => { this._process = mode; },
-          node => { if (this._onTurtlesimNodeStart) this._onTurtlesimNodeStart(node); }
+          mode => {
+            this._process = mode;
+            // 외부 종료(ros2 node kill 등) 시 터미널 자동 복구
+            if (mode?.node) {
+              const prev = mode.node.onStopped;
+              mode.node.onStopped = () => {
+                if (prev) prev();
+                if (this._process?.node === mode.node) {
+                  this._process = null;
+                  this._writePrompt();
+                }
+              };
+            }
+          },
+          node => { if (this._onTurtlesimNodeStart) this._onTurtlesimNodeStart(node, () => this._kill()); }
         );
       }
       if (!this._process) this._writePrompt();
