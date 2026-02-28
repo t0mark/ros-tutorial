@@ -1,0 +1,430 @@
+/* ── Reset & Root ─────────────────────────────────────── */
+:root {
+  --bg-base:       #0d1117;
+  --bg-panel:      #161b22;
+  --bg-card:       #1c2128;
+  --bg-hover:      rgba(255,255,255,0.04);
+  --border:        #30363d;
+  --border-active: #58a6ff;
+
+  --accent:        #58a6ff;
+  --accent-green:  #3fb950;
+  --accent-orange: #ff7b35;
+  --accent-yellow: #d29922;
+
+  --text-primary:   #c9d1d9;
+  --text-secondary: #8b949e;
+  --text-dim:       #484f58;
+
+  --header-h: 48px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#app {
+  height: 100%;
+}
+
+/* ── Layout ───────────────────────────────────────────── */
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-header {
+  height: var(--header-h);
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  gap: 12px;
+}
+
+.header-logo {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.header-badges {
+  display: flex;
+  gap: 8px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.badge-ros {
+  background: rgba(63, 185, 80, 0.12);
+  color: var(--accent-green);
+  border: 1px solid rgba(63, 185, 80, 0.3);
+}
+
+.badge-sim {
+  background: rgba(88, 166, 255, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(88, 166, 255, 0.3);
+}
+
+/* ── Main area ────────────────────────────────────────── */
+.app-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Tutorial Panel ───────────────────────────────────── */
+.tutorial-panel {
+  width: 290px;
+  min-width: 240px;
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.tutorial-panel::-webkit-scrollbar { width: 4px; }
+.tutorial-panel::-webkit-scrollbar-track { background: transparent; }
+.tutorial-panel::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.tutorial-inner { height: 100%; }
+
+.exercise-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-panel);
+}
+
+.exercise-tab {
+  flex: 1;
+  padding: 10px 8px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.4;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.exercise-tab span {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+.exercise-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+.exercise-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Steps ────────────────────────────────────────────── */
+.steps-container {
+  padding: 10px 8px;
+}
+
+.step {
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.step.active { border-color: var(--accent); }
+
+.step-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.step-header:hover { background: var(--bg-hover); }
+
+.step-num {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.step.active   .step-num { background: var(--accent);       color: #0d1117; }
+.step.done     .step-num { background: var(--accent-green);  color: #0d1117; font-size: 11px; }
+
+.step-text {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.step.done .step-text { color: var(--text-secondary); }
+
+.term-hint {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(88, 166, 255, 0.1);
+  color: var(--accent);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  margin-top: 2px;
+}
+
+.step-body {
+  padding: 8px 10px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.code-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+
+.code-block code {
+  flex: 1;
+  font-family: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+  font-size: 11.5px;
+  color: #7ee787;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.copy-btn {
+  flex-shrink: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.copy-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.step-detail {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  margin-bottom: 12px;
+  white-space: pre-line;
+}
+
+.step-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.nav-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.nav-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.done-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-green);
+}
+
+/* ── Workspace (right side) ───────────────────────────── */
+.workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ── SplitManager 루트 컨테이너 ───────────────────────── */
+.panes-container {
+  flex: 1;
+  display: flex;
+  flex-direction: row;   /* 터미널은 항상 가로로 나열 */
+  overflow: hidden;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+}
+
+/* ── 개별 터미널 페인 ─────────────────────────────────── */
+.split-pane {
+  /* flex-basis는 SplitManager가 JS로 n등분 설정 */
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  /* 포커스 하이라이트 (inset → 레이아웃 영향 없음) */
+  box-shadow: inset 0 0 0 0px var(--accent);
+  transition: box-shadow 0.12s;
+}
+.split-pane:last-child { border-right: none; }
+.split-pane.focused    { box-shadow: inset 0 0 0 2px var(--accent); }
+
+/* ── Turtlesim row ────────────────────────────────────── */
+.turtlesim-row {
+  flex-shrink: 0;
+  height: 280px;
+  border-top: 1px solid var(--border);
+  display: flex;
+}
+
+.turtlesim-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.turtlesim-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-base);
+  overflow: hidden;
+  padding: 4px;
+}
+
+/* ── Pane label ───────────────────────────────────────── */
+.pane-label {
+  height: 30px;
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.3px;
+  overflow: hidden;
+}
+
+/* 단축키 힌트 (레이블 우측에 희미하게 표시) */
+.pane-shortcuts {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-dim);
+  white-space: nowrap;
+  letter-spacing: 0;
+}
+
+.pane-label-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-orange);
+  flex-shrink: 0;
+}
+
+.pane-label-dot--green {
+  background: var(--accent-green);
+}
+
+/* ── Terminal container ───────────────────────────────── */
+.term-container {
+  flex: 1;
+  overflow: hidden;
+  padding: 4px 4px 2px;
+}
+
+/* xterm.js overrides */
+.xterm {
+  height: 100%;
+}
+.xterm-viewport {
+  overflow-y: auto !important;
+}
+.xterm-viewport::-webkit-scrollbar { width: 4px; }
+.xterm-viewport::-webkit-scrollbar-track { background: transparent; }
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+/* ── Canvas ───────────────────────────────────────────── */
+.turtlesim-canvas {
+  display: block;
+  border-radius: 4px;
+}
