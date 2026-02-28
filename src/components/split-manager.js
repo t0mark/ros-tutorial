@@ -1,4 +1,4 @@
-import { XtermTerminal } from '../terminal/xterm-terminal.js';
+import { XtermTerminal } from './xterm-terminal.js';
 
 /**
  * 터미널 분할 관리자 (Flat list 방식)
@@ -8,9 +8,10 @@ import { XtermTerminal } from '../terminal/xterm-terminal.js';
  * Alt+←/→      → 터미널 포커스 이동
  */
 export class SplitManager {
-  constructor(container, onTurtlesimNodeStart) {
+  constructor(container, onTurtlesimNodeStart, onRqtGraphOpen) {
     this._container = container;
     this._onTurtlesimNodeStart = onTurtlesimNodeStart;
+    this._onRqtGraphOpen = onRqtGraphOpen;
     this._panes = [];
     this._focusIdx = -1;
     this._counter = 0;
@@ -56,7 +57,7 @@ export class SplitManager {
     el.appendChild(label);
     el.appendChild(termContainer);
 
-    const terminal = new XtermTerminal(termContainer, this._onTurtlesimNodeStart);
+    const terminal = new XtermTerminal(termContainer, this._onTurtlesimNodeStart, this._onRqtGraphOpen);
 
     // 단축키를 xterm이 처리하지 않도록 차단
     terminal.interceptKeys(e => {

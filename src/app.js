@@ -1,5 +1,36 @@
-import { SplitManager } from './ui/split-manager.js';
-import { TutorialPanel } from './ui/tutorial-panel.js';
+import { SplitManager } from './components/split-manager.js';
+import { TutorialPanel } from './components/tutorial-panel.js';
+import { ros2 } from './core/simulator.js';
+
+/* ── rqt_graph 데이터 수집 ──────────────────────────────── */
+function getGraphData() {
+  const nodes    = [];
+  const topics   = [];
+  const edges    = [];
+  const topicSet = new Set();
+  const edgeKey  = new Set();
+  const INTERNAL = ['/ros2cli_', '/rosbag2_'];
+
+  ros2.nodes.forEach(nodeInfo => {
+    if (INTERNAL.some(p => nodeInfo.name.startsWith(p))) return;
+    nodes.push({ name: nodeInfo.name });
+
+    nodeInfo.publishers.forEach(topic => {
+      const k = `pub:${nodeInfo.name}:${topic}`;
+      if (!edgeKey.has(k)) { edges.push({ node: nodeInfo.name, topic, dir: 'pub' }); edgeKey.add(k); }
+      topicSet.add(topic);
+    });
+
+    nodeInfo.subscriptions.forEach(topic => {
+      const k = `sub:${nodeInfo.name}:${topic}`;
+      if (!edgeKey.has(k)) { edges.push({ node: nodeInfo.name, topic, dir: 'sub' }); edgeKey.add(k); }
+      topicSet.add(topic);
+    });
+  });
+
+  topicSet.forEach(t => topics.push({ name: t, type: ros2.getTopicInfo(t).type }));
+  return { nodes, topics, edges };
+}
 
 export function createApp(root) {
   root.innerHTML = `
@@ -23,6 +54,7 @@ export function createApp(root) {
 
   new TutorialPanel(document.getElementById('tutorial-panel'));
 
+  /* ── turtlesim 팝업 ─────────────────────────────────── */
   const bc = new BroadcastChannel('turtlesim');
   let popupWin = null;
 
@@ -39,10 +71,8 @@ export function createApp(root) {
 
     bc.onmessage = e => {
       if (e.data.type === 'ready') {
-        // 팝업 로드 완료 → 현재 상태 전송
         bc.postMessage({ type: 'state', state: latestState, path: latestPath });
       } else if (e.data.type === 'close') {
-        // 팝업 X 버튼 → 터미널 노드 종료
         killTerminal();
       }
     };
@@ -59,5 +89,45 @@ export function createApp(root) {
     };
   };
 
-  new SplitManager(document.getElementById('panes-container'), onTurtlesimStart);
+  /* ── rqt_graph 팝업 ─────────────────────────────────── */
+  const rqtBc = new BroadcastChannel('rqt_graph');
+  let rqtWin       = null;
+  let rqtPollTimer = null;
+
+  const onRqtGraphOpen = () => {
+    if (rqtWin && !rqtWin.closed) { rqtWin.focus(); return; }
+
+    rqtWin = window.open(
+      'rqt-graph-popup.html',
+      'rqt_graph',
+      'width=900,height=600,resizable=yes'
+    );
+
+    rqtBc.onmessage = e => {
+      if (e.data.type === 'ready') {
+        rqtBc.postMessage({ type: 'graph', data: getGraphData() });
+        // 500 ms 마다 그래프 갱신
+        clearInterval(rqtPollTimer);
+        rqtPollTimer = setInterval(() => {
+          if (!rqtWin || rqtWin.closed) {
+            clearInterval(rqtPollTimer);
+            rqtPollTimer = null;
+            return;
+          }
+          rqtBc.postMessage({ type: 'graph', data: getGraphData() });
+        }, 500);
+      } else if (e.data.type === 'close') {
+        clearInterval(rqtPollTimer);
+        rqtPollTimer  = null;
+        rqtBc.onmessage = null;
+        rqtWin        = null;
+      }
+    };
+  };
+
+  new SplitManager(
+    document.getElementById('panes-container'),
+    onTurtlesimStart,
+    onRqtGraphOpen,
+  );
 }

@@ -1,4 +1,4 @@
-import { WORLD_SIZE } from '../ros2/nodes/turtlesim-node.js';
+import { WORLD_SIZE } from '../nodes/turtlesim-node.js';
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');

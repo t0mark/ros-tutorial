@@ -1,6 +1,6 @@
-import { SimulatedNode } from '../node-base.js';
-import { ros2 } from '../simulator.js';
-import { makeTwist } from '../message-types.js';
+import { SimulatedNode } from '../core/node-base.js';
+import { ros2 } from '../core/simulator.js';
+import { makeTwist } from '../core/message-types.js';
 
 const LINEAR_SPEED = 2.0;
 const ANGULAR_SPEED = 2.0;

@@ -1,5 +1,5 @@
-import { SimulatedNode } from '../node-base.js';
-import { ros2 } from '../simulator.js';
+import { SimulatedNode } from '../core/node-base.js';
+import { ros2 } from '../core/simulator.js';
 
 export class TalkerNode extends SimulatedNode {
   constructor(onLog) {

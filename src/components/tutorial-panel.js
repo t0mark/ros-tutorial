@@ -1,4 +1,4 @@
-import { exercises } from '../exercises/data.js';
+import { exercises } from '../content/exercises.js';
 
 export class TutorialPanel {
   constructor(container) {

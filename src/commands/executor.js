@@ -1,8 +1,8 @@
-import { ros2 } from './simulator.js';
-import { TalkerNode } from './nodes/talker.js';
-import { ListenerNode } from './nodes/listener.js';
-import { TurtlesimNode } from './nodes/turtlesim-node.js';
-import { TeleopNode } from './nodes/teleop-node.js';
+import { ros2 } from '../core/simulator.js';
+import { TalkerNode } from '../nodes/talker.js';
+import { ListenerNode } from '../nodes/listener.js';
+import { TurtlesimNode } from '../nodes/turtlesim-node.js';
+import { TeleopNode } from '../nodes/teleop-node.js';
 
 /* ── 정적 인터페이스 정의 ───────────────────────────────── */
 const IFACE = {
@@ -80,9 +80,16 @@ const LAUNCH_FILES = {
 };
 
 /* ── 진입점 ─────────────────────────────────────────────── */
-export function executeCommand(input, write, onProcessStart, onTurtlesimNodeStart) {
+export function executeCommand(input, write, onProcessStart, onTurtlesimNodeStart, onRqtGraphOpen) {
   const args = input.trim().split(/\s+/).filter(Boolean);
   if (!args.length) return;
+
+  // ── 독립 bash 명령 ──────────────────────────────────────
+  if (args[0] === 'rqt_graph') {
+    if (onRqtGraphOpen) onRqtGraphOpen();
+    else write('[ERROR] rqt_graph is not available');
+    return;
+  }
 
   if (args[0] !== 'ros2') {
     write(`bash: ${args[0]}: command not found`);
@@ -99,7 +106,7 @@ export function executeCommand(input, write, onProcessStart, onTurtlesimNodeStar
   }
 
   switch (args[1]) {
-    case 'run':       handleRun(args, write, onProcessStart, onTurtlesimNodeStart); break;
+    case 'run':       handleRun(args, write, onProcessStart, onTurtlesimNodeStart, onRqtGraphOpen); break;
     case 'node':      handleNode(args, write); break;
     case 'topic':     handleTopic(args, write, onProcessStart); break;
     case 'interface': handleInterface(args, write); break;
@@ -107,16 +114,22 @@ export function executeCommand(input, write, onProcessStart, onTurtlesimNodeStar
     case 'param':     handleParam(args, write); break;
     case 'service':   handleService(args, write); break;
     case 'action':    handleAction(args, write, onProcessStart); break;
-    case 'launch':    handleLaunch(args, write, onProcessStart, onTurtlesimNodeStart); break;
+    case 'launch':    handleLaunch(args, write, onProcessStart, onTurtlesimNodeStart, onRqtGraphOpen); break;
     case 'bag':       handleBag(args, write, onProcessStart); break;
     default: write(`ros2: '${args[1]}' is not a ros2 command. See 'ros2 --help'`);
   }
 }
 
 /* ── ros2 run ──────────────────────────────────────────── */
-function handleRun(args, write, onProcessStart, onTurtlesimNodeStart) {
+function handleRun(args, write, onProcessStart, onTurtlesimNodeStart, onRqtGraphOpen) {
   const pkg = args[2], exe = args[3];
   if (!pkg || !exe) { write('usage: ros2 run <package> <executable>'); return; }
+
+  if (pkg === 'rqt_graph' && exe === 'rqt_graph') {
+    if (onRqtGraphOpen) onRqtGraphOpen();
+    else write('[ERROR] rqt_graph is not available');
+    return;
+  }
 
   if (pkg === 'demo_nodes_cpp' || pkg === 'demo_nodes_py') {
     if (exe === 'talker') {

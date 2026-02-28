@@ -95,9 +95,9 @@ export class ROS2Simulator {
     const subArr = this.subs.get(topic) || [];
     const getName = id => this.nodes.get(id)?.name ?? id;
     return {
-      type:      pubArr[0]?.msgType ?? subArr[0]?.msgType ?? 'unknown',
-      pubCount:  pubArr.length,
-      subCount:  subArr.length,
+      type:        pubArr[0]?.msgType ?? subArr[0]?.msgType ?? 'unknown',
+      pubCount:    pubArr.length,
+      subCount:    subArr.length,
       publishers:  pubArr.map(p => getName(p.nodeId)),
       subscribers: subArr.map(s => getName(s.nodeId)),
     };
@@ -135,10 +135,10 @@ export class ROS2Simulator {
     this.actions.set(name, { nodeId, type });
   }
 
-  getActionList()      { return Array.from(this.actions.entries()).map(([name, a]) => ({ name, type: a.type })); }
-  getActionType(name)  { return this.actions.get(name)?.type ?? null; }
-  getActionNodeId(name){ return this.actions.get(name)?.nodeId ?? null; }
-  hasAction(name)      { return this.actions.has(name); }
+  getActionList()       { return Array.from(this.actions.entries()).map(([name, a]) => ({ name, type: a.type })); }
+  getActionType(name)   { return this.actions.get(name)?.type ?? null; }
+  getActionNodeId(name) { return this.actions.get(name)?.nodeId ?? null; }
+  hasAction(name)       { return this.actions.has(name); }
 }
 
 export const ros2 = new ROS2Simulator();

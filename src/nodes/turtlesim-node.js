@@ -1,5 +1,5 @@
-import { SimulatedNode } from '../node-base.js';
-import { ros2 } from '../simulator.js';
+import { SimulatedNode } from '../core/node-base.js';
+import { ros2 } from '../core/simulator.js';
 
 export const WORLD_SIZE = 11.088;
 const TICK_MS = 50;
@@ -61,7 +61,6 @@ export class TurtlesimNode extends SimulatedNode {
     });
 
     ros2.registerService(this.id, '/turtle1/set_pen', 'turtlesim/srv/SetPen', req => {
-      // pen state tracked but not visually rendered
       this._pen = { r: req.r ?? 179, g: req.g ?? 179, b: req.b ?? 179, width: req.width ?? 3, off: req.off ?? 0 };
       return {};
     });

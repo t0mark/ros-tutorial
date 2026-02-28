@@ -1,13 +1,14 @@
-// xterm.js ESM — jsDelivr CDN (Node.js/빌드 불필요)
-import { Terminal } from 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/+esm';
-import { FitAddon } from 'https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/+esm';
-import { executeCommand } from '../ros2/command-executor.js';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import '@xterm/xterm/css/xterm.css';
+import { executeCommand } from '../commands/executor.js';
 
 const PROMPT = '\x1b[32muser@ros2\x1b[0m:\x1b[34m~\x1b[0m$ ';
 
 export class XtermTerminal {
-  constructor(container, onTurtlesimNodeStart) {
+  constructor(container, onTurtlesimNodeStart, onRqtGraphOpen) {
     this._onTurtlesimNodeStart = onTurtlesimNodeStart;
+    this._onRqtGraphOpen = onRqtGraphOpen;
     this._buffer = '';
     this._history = [];
     this._histIdx = -1;
@@ -91,7 +92,8 @@ export class XtermTerminal {
               };
             }
           },
-          node => { if (this._onTurtlesimNodeStart) this._onTurtlesimNodeStart(node, () => this._kill()); }
+          node => { if (this._onTurtlesimNodeStart) this._onTurtlesimNodeStart(node, () => this._kill()); },
+          () => { if (this._onRqtGraphOpen) this._onRqtGraphOpen(); }
         );
       }
       if (!this._process) this._writePrompt();
