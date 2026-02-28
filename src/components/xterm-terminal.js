@@ -10,6 +10,7 @@ export class XtermTerminal {
     this._onTurtlesimNodeStart = onTurtlesimNodeStart;
     this._onRqtGraphOpen = onRqtGraphOpen;
     this._buffer = '';
+    this._cursorPos = 0;   // buffer 내 커서 위치
     this._history = [];
     this._histIdx = -1;
     this._process = null; // { node, onKey? }
@@ -70,8 +71,10 @@ export class XtermTerminal {
     if (data === '\r') {
       this._term.write('\r\n');
       const cmd = this._buffer.trim();
-      if (cmd) { this._history.unshift(cmd); this._histIdx = -1; }
+      if (cmd && cmd !== this._history[0]) { this._history.unshift(cmd); }
+      this._histIdx = -1;
       this._buffer = '';
+      this._cursorPos = 0;
       if (cmd === 'clear') {
         this._term.clear();
       } else if (cmd) {
@@ -97,10 +100,16 @@ export class XtermTerminal {
         );
       }
       if (!this._process) this._writePrompt();
-    } else if (data === '\x7f') {
-      if (this._buffer.length) { this._buffer = this._buffer.slice(0, -1); this._term.write('\b \b'); }
-    } else if (data === '\x03') {
-      this._term.write('^C'); this._buffer = ''; this._histIdx = -1; this._writePrompt();
+    } else if (data === '\x7f') {         // Backspace
+      if (this._cursorPos > 0) {
+        const after = this._buffer.slice(this._cursorPos);
+        this._buffer = this._buffer.slice(0, this._cursorPos - 1) + after;
+        this._cursorPos--;
+        // 커서 1칸 후퇴 → 나머지 텍스트 + 공백 1개 출력 → 커서 복귀
+        this._term.write('\b' + after + ' ' + (after.length > 0 ? `\x1b[${after.length + 1}D` : '\b'));
+      }
+    } else if (data === '\x03') {         // Ctrl+C
+      this._term.write('^C'); this._buffer = ''; this._cursorPos = 0; this._histIdx = -1; this._writePrompt();
     } else if (data === '\x1b[A') {       // 위 ↑ 히스토리
       if (this._histIdx < this._history.length - 1) {
         this._histIdx++;
@@ -109,17 +118,30 @@ export class XtermTerminal {
     } else if (data === '\x1b[B') {       // 아래 ↓ 히스토리
       if (this._histIdx > 0) { this._histIdx--; this._replaceBuffer(this._history[this._histIdx]); }
       else if (this._histIdx === 0) { this._histIdx = -1; this._replaceBuffer(''); }
-    } else if (data === '\x1b[C' || data === '\x1b[D') {
-      // 좌우 방향키 무시
+    } else if (data === '\x1b[D') {       // 왼쪽 ←
+      if (this._cursorPos > 0) {
+        this._cursorPos--;
+        this._term.write('\x1b[D');
+      }
+    } else if (data === '\x1b[C') {       // 오른쪽 →
+      if (this._cursorPos < this._buffer.length) {
+        this._cursorPos++;
+        this._term.write('\x1b[C');
+      }
     } else if (data >= ' ') {
-      this._buffer += data;
-      this._term.write(data);
+      // 커서 위치에 문자 삽입
+      const after = this._buffer.slice(this._cursorPos);
+      this._buffer = this._buffer.slice(0, this._cursorPos) + data + after;
+      this._cursorPos++;
+      this._term.write(data + after);
+      if (after.length > 0) this._term.write(`\x1b[${after.length}D`);
     }
   }
 
   _replaceBuffer(text) {
     this._term.write('\r\x1b[K' + PROMPT);
     this._buffer = text;
+    this._cursorPos = text.length;
     this._term.write(text);
   }
 

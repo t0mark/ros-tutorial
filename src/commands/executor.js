@@ -75,7 +75,7 @@ const PKGS = {
 
 /* ── 알려진 launch 파일 ──────────────────────────────────── */
 const LAUNCH_FILES = {
-  'turtlesim/turtlesim.launch.py':            { nodes: ['turtlesim_node'] },
+  'turtlesim/turtlesim.launch.py':            { nodes: ['turtlesim_node', 'teleop_turtle'] },
   'demo_nodes_cpp/talker_listener.launch.py': { nodes: ['talker', 'listener'] },
 };
 
@@ -320,10 +320,20 @@ function handleTopic(args, write, onProcessStart) {
   }
 
   if (sub === 'pub') {
-    const topic = args[3], msgType = args[4];
-    const yaml = args.slice(5).join(' ');
+    const once = args.includes('--once');
+    const rateFlag = args.indexOf('-r');
+    const hz = rateFlag !== -1 ? (parseFloat(args[rateFlag + 1]) || 1) : 1;
+    // 플래그(--, -r 값)를 제외한 위치 인자만 추출
+    const positional = [];
+    for (let i = 3; i < args.length; i++) {
+      if (args[i] === '--once') continue;
+      if (args[i] === '-r') { i++; continue; }
+      positional.push(args[i]);
+    }
+    const topic = positional[0], msgType = positional[1];
+    const yaml = positional.slice(2).join(' ');
     if (!topic || !msgType) {
-      write('usage: ros2 topic pub <topic> <type> "<yaml>"');
+      write('usage: ros2 topic pub [--once] [-r <hz>] <topic> <type> "<yaml>"');
       write('example: ros2 topic pub /turtle1/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 1.0}}"');
       return;
     }
@@ -331,9 +341,30 @@ function handleTopic(args, write, onProcessStart) {
     try { msg = parseYaml(yaml || '{}'); } catch { write('[ERROR] failed to parse message'); return; }
     const nodeId = `pub_${Date.now()}`;
     ros2.registerNode(nodeId, `/ros2cli_pub_${(Math.random() * 99999) | 0}`);
-    ros2.publish(nodeId, topic, msgType, msg);
-    write(`publishing once to ${topic}`);
-    ros2.unregisterNode(nodeId);
+
+    if (once) {
+      // --once: 1회만 발행
+      ros2.publish(nodeId, topic, msgType, msg);
+      write(`publishing once to ${topic}`);
+      ros2.unregisterNode(nodeId);
+    } else {
+      // 기본: 지정 hz로 계속 발행 (Ctrl+C로 중단)
+      write(`publisher: beginning loop, publishing at ${hz} Hz. Press Ctrl+C to interrupt`);
+      ros2.publish(nodeId, topic, msgType, msg);
+      let count = 1;
+      const timer = setInterval(() => {
+        ros2.publish(nodeId, topic, msgType, msg);
+        count++;
+      }, 1000 / hz);
+      onProcessStart({
+        node: {
+          stop() {
+            clearInterval(timer);
+            ros2.unregisterNode(nodeId);
+          },
+        },
+      });
+    }
     return;
   }
 
@@ -601,12 +632,16 @@ function handleAction(args, write, onProcessStart) {
       handle = inst.executeRotateAbsolute(
         theta,
         remaining => {
-          if (!fakeNode.stopped) write(`Feedback:\n    remaining: ${remaining.toFixed(4)}`);
+          if (!fakeNode.stopped) {
+            write('Feedback:');
+            write(`    remaining: ${remaining.toFixed(4)}`);
+          }
         },
         delta => {
           if (fakeNode.stopped) return;
           fakeNode.stopped = true;
-          write(`Result:\n    delta: ${delta.toFixed(4)}`);
+          write('Result:');
+          write(`    delta: ${delta.toFixed(4)}`);
           write('Goal finished with status: SUCCEEDED');
           if (fakeNode.onStopped) fakeNode.onStopped();
         },
@@ -648,11 +683,18 @@ function handleLaunch(args, write, onProcessStart, onTurtlesimNodeStart) {
   write('[INFO] [launch]: Default logging verbosity is set to INFO');
 
   const nodes = [];
+  let teleopNode = null;
   lf.nodes.forEach(exe => {
     if (exe === 'turtlesim_node') {
       if (ros2.hasNode('/turtlesim')) { write('[WARN] /turtlesim already running, skipping'); return; }
       const node = new TurtlesimNode(write);
       if (onTurtlesimNodeStart) onTurtlesimNodeStart(node);
+      nodes.push(node);
+    }
+    if (exe === 'teleop_turtle') {
+      if (ros2.hasNode('/teleop_turtle')) { write('[WARN] /teleop_turtle already running, skipping'); return; }
+      const node = new TeleopNode(write);
+      teleopNode = node;
       nodes.push(node);
     }
     if (exe === 'talker') {
@@ -677,7 +719,9 @@ function handleLaunch(args, write, onProcessStart, onTurtlesimNodeStart) {
       if (this.onStopped) this.onStopped();
     },
   };
-  onProcessStart({ node: compositeNode });
+  const processMode = { node: compositeNode };
+  if (teleopNode) processMode.onKey = key => teleopNode.handleKey(key);
+  onProcessStart(processMode);
 }
 
 /* ── ros2 bag ──────────────────────────────────────────── */

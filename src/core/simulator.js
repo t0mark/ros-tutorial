@@ -29,6 +29,7 @@ export class ROS2Simulator {
       const arr = this.pubs.get(t);
       if (arr) this.pubs.set(t, arr.filter(p => p.nodeId !== id));
     });
+    this.params.delete(node.name);
     this.nodes.delete(id);
     this.nodeInstances.delete(id);
     for (const [name, svc] of this.services) {

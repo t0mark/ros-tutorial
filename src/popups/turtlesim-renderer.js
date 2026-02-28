@@ -27,7 +27,8 @@ function draw() {
   if (!state) { drawIdle(); return; }
   const w = canvas.width, h = canvas.height;
 
-  ctx.fillStyle = '#4fc3f7';
+  const bg = state.bg ?? { r: 69, g: 86, b: 255 };
+  ctx.fillStyle = `rgb(${bg.r},${bg.g},${bg.b})`;
   ctx.fillRect(0, 0, w, h);
 
   ctx.strokeStyle = 'rgba(255,255,255,0.12)';
@@ -41,17 +42,21 @@ function draw() {
   ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 2;
   ctx.strokeRect(1, 1, w - 2, h - 2);
 
-  if (path.length > 1) {
-    ctx.beginPath(); ctx.strokeStyle = '#ff6f00'; ctx.lineWidth = 2;
+  // path = 세그먼트 배열: { r, g, b, width, off, points:[{x,y}] }
+  path.forEach(seg => {
+    if (seg.off || seg.points.length < 2) return;
+    ctx.beginPath();
+    ctx.strokeStyle = `rgb(${seg.r},${seg.g},${seg.b})`;
+    ctx.lineWidth   = seg.width ?? 2;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    const [px0, py0] = w2c(path[0].x, path[0].y);
+    const [px0, py0] = w2c(seg.points[0].x, seg.points[0].y);
     ctx.moveTo(px0, py0);
-    for (let i = 1; i < path.length; i++) {
-      const [px, py] = w2c(path[i].x, path[i].y);
+    for (let i = 1; i < seg.points.length; i++) {
+      const [px, py] = w2c(seg.points[i].x, seg.points[i].y);
       ctx.lineTo(px, py);
     }
     ctx.stroke();
-  }
+  });
 
   const [tx, ty] = w2c(state.x, state.y);
   drawTurtle(tx, ty, state.theta, (w / WORLD_SIZE) * 0.28);

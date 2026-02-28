@@ -72,11 +72,11 @@ export class TutorialPanel {
       ? `<span class="term-hint">Terminal ${step.terminalHint}</span>` : '';
     const body = (step.code || step.detail || isActive) ? `
       <div class="step-body">
-        ${step.code ? `
+        ${(step.codes ?? (step.code ? [step.code] : [])).map(cmd => `
           <div class="code-block">
-            <code>${esc(step.code)}</code>
-            <button class="copy-btn" data-code="${escAttr(step.code)}">복사</button>
-          </div>` : ''}
+            <code>${esc(cmd)}</code>
+            <button class="copy-btn" data-code="${escAttr(cmd)}">복사</button>
+          </div>`).join('')}
         ${step.detail ? `<p class="step-detail">${esc(step.detail).replace(/\n/g,'<br>')}</p>` : ''}
         ${isActive ? `
         <div class="step-nav">
