@@ -3,7 +3,7 @@
 브라우저에서 바로 실행되는 **ROS2 시뮬레이션 튜토리얼** 웹앱입니다.
 실제 ROS2 설치 없이 터미널 명령어 실습, Turtlesim, rqt_graph를 체험할 수 있습니다.
 
-🔗 **[라이브 데모](https://t0mark.github.io/ros_tutorial/)**
+🔗 **[라이브 데모](https://t0mark.github.io/ros-tutorial/)**
 
 ---
 
