@@ -1,0 +1,5 @@
+[
+  {"type":"add","id":"board","part":"arduino","x":160,"y":180,"label":"Arduino"},
+  {"type":"add","id":"R1","part":"resistor","x":500,"y":160,"label":"220 Ω"},
+  {"type":"connect","id":"W1","from":{"component":"board","pin":"D13"},"to":{"component":"R1","pin":"A"},"color":"#c56a40"}
+]

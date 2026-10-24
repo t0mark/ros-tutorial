@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ROS 웹 시뮬레이터 사용 안내</title>
+<meta name="description" content="ROS 설치 없이 브라우저에서 Topic 통신과 Turtlesim을 실습하는 방법">
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<div class="home-wrap">
+  <header class="home-head">
+    <div class="manline"><span>ROS SIM</span><span>웹 도구 사용 안내</span></div>
+    <h1>ROS 웹 시뮬레이터</h1>
+    <p>ROS를 설치하지 않고 브라우저에서 명령어와 노드 간 통신을 실습합니다. PC의 최신 Chrome·Edge·Firefox에서 키보드를 사용해 실습하세요.</p>
+  </header>
+  <p><a href="ros/">시뮬레이터 실행 →</a> · <a href="../appendices/ros2/">ROS 2 기초 읽기</a> · <a href="../index.html">교재 목차</a></p>
+  <h2>첫 실습: Topic 통신</h2>
+  <ol>
+    <li>시뮬레이터의 첫 터미널에 <code>ros2 run demo_nodes_cpp talker</code>를 입력합니다.</li>
+    <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd>로 터미널을 추가하고 <code>ros2 run demo_nodes_cpp listener</code>를 입력합니다. 전송한 메시지가 수신되는지 확인합니다.</li>
+    <li>터미널을 하나 더 열어 <code>ros2 topic list</code>, <code>ros2 node list</code>를 실행합니다.</li>
+    <li><code>rqt_graph</code>를 실행하면 새 창에 노드와 토픽의 연결이 표시됩니다.</li>
+    <li>실행 중인 터미널에서 <kbd>Ctrl</kbd>+<kbd>C</kbd>를 누르면 해당 노드가 종료됩니다.</li>
+  </ol>
+  <h2>Turtlesim 조종</h2>
+  <ol>
+    <li><code>ros2 run turtlesim turtlesim_node</code>를 실행합니다. 브라우저가 새 창을 차단하면 이 사이트의 팝업을 허용하고 노드를 종료한 뒤 다시 실행하세요.</li>
+    <li>다른 터미널에서 <code>ros2 run turtlesim turtle_teleop_key</code>를 실행합니다.</li>
+    <li>조종 명령을 실행한 터미널에 포커스를 둔 채 방향키로 거북이를 움직입니다.</li>
+  </ol>
+  <p>왼쪽 튜토리얼의 Hello Topic·Turtlesim 탭에서 단계별 설명과 복사할 명령어를 볼 수 있습니다. <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd>로 터미널을 이동하고 <kbd>Ctrl</kbd>+<kbd>D</kbd>로 닫습니다.</p>
+  <h2>실습 범위와 초기화</h2>
+  <p>JavaScript로 ROS 2 Humble의 일부 CLI 동작을 재현합니다. 실제 ROS·DDS·리눅스 셸·Python 실행 환경은 아니므로 실제 장치 연결, 패키지 설치와 빌드, 임의의 프로그램 실행은 지원하지 않습니다. 일부 명령은 학습용으로 단순화되어 있습니다.</p>
+  <p>시뮬레이션 상태는 새로고침하면 초기화됩니다. bag record는 수신 메시지 수만 표시하며 파일 저장·재생은 지원하지 않습니다. 실습은 시뮬레이터 탭 하나에서 진행하세요.</p>
+  <h2>출처</h2>
+  <p><a href="https://github.com/t0mark/ros-tutorial/tree/ros">t0mark/ros-tutorial의 ros 브랜치</a>를 교재에 포팅했습니다. 기준 커밋은 <code>d0a80736926ba7235ca79bb6ca427ebf0aa6e144</code>입니다.</p>
+  <footer class="home-foot"><a href="../index.html">교재 목차</a><button class="theme-btn" type="button">테마: 시스템</button></footer>
+</div>
+</body>
+</html>

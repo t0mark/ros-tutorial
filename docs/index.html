@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>공부 자료</title>
-<meta name="description" content="부원 자습용 공부 자료 모음">
+<title>전자 시스템 이론 교재</title>
+<meta name="description" content="전자 시스템 이론 교재: 본문, 부록, 웹 도구">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;600;800&family=Nanum+Gothic+Coding:wght@400;700&display=swap">
@@ -15,10 +15,16 @@
 <div class="home-wrap">
 
   <header class="home-head">
-    <div class="manline"><span>STUDY</span><span>자료 목록</span></div>
-    <h1>공부 자료</h1>
+    <div class="manline"><span>TEXTBOOK</span><span>교재 목차</span></div>
+    <h1>전자 시스템 이론</h1>
     <p>순서대로 읽고, 각 장 끝의 확인 문제로 점검하세요. 체크한 진행 상황은 이 브라우저에 저장되어 아래 목록에도 표시됩니다.</p>
   </header>
+
+  <h2>본문</h2>
+  <p>본문 챕터 구성은 준비 중입니다.</p>
+
+  <h2>부록</h2>
+  <p>현재 읽을 수 있는 자료입니다. 컴퓨터 시스템과 데이터 통신 부록은 추가 구성 예정입니다.</p>
 
   <!--
     새 자료를 추가하려면 아래 <li> 하나를 복사해서
@@ -27,7 +33,7 @@
   -->
   <ul class="courses">
     <li>
-      <a class="course" href="linux/" data-page="linux">
+      <a class="course" href="appendices/linux/" data-page="linux">
         <span class="code">LINUX</span>
         <h2>리눅스 첫걸음</h2>
         <p>터미널 사용부터 파일·디렉터리, 사용자와 권한, USB 장치와 udev, 입력과 출력(재지정·파이프), 환경 변수와 .bashrc, 프로세스, 검색과 압축, vi까지.</p>
@@ -35,7 +41,7 @@
       </a>
     </li>
     <li>
-      <a class="course" href="ipc/" data-page="ipc">
+      <a class="course" href="appendices/ipc/" data-page="ipc">
         <span class="code">IPC</span>
         <h2>프로세스 간 통신</h2>
         <p>코드가 프로세스가 되는 과정과 메모리 구조부터 파이프·시그널, 공유 메모리와 동기화, 네트워크와 소켓, 그리고 ROS가 통신을 추상화하는 방식까지.</p>
@@ -43,7 +49,7 @@
       </a>
     </li>
     <li>
-      <a class="course" href="ros2/" data-page="ros2">
+      <a class="course" href="appendices/ros2/" data-page="ros2">
         <span class="code">ROS2</span>
         <h2>ROS 2 기초</h2>
         <p>ROS 2의 기본 개념과 그래프, 명령어와 도구(rqt · RViz2 · bag), Python 패키지와 colcon 빌드, Topic·Service·Action과 QoS·실행기, 노드·launch·설정 파일로 나누는 구조, 그리고 URDF와 TF2까지.</p>
@@ -51,6 +57,25 @@
       </a>
     </li>
   </ul>
+
+  <h2>웹 도구</h2>
+  <ul class="courses">
+    <li>
+      <a class="course" href="tools/ros/">
+        <span class="code">ROS SIM</span>
+        <h2>ROS 웹 시뮬레이터</h2>
+        <p>ROS 설치 없이 브라우저에서 멀티 터미널, Topic 통신, Turtlesim과 rqt_graph를 실습합니다.</p>
+      </a>
+    </li>
+    <li>
+      <a class="course" href="tools/circuits/">
+        <span class="code">CIRCUIT</span>
+        <h2>회로도 작업실</h2>
+        <p>소자를 배치하고 핀을 연결해 회로 그림을 만듭니다. SVG 소자 등록, 공통 JSON 편집과 교재용 SVG 출력을 지원합니다.</p>
+      </a>
+    </li>
+  </ul>
+
 
   <footer class="home-foot">
     <span>진행 상황은 기기·브라우저마다 따로 저장됩니다.</span>

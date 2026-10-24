@@ -12,7 +12,7 @@ import { NotionToMarkdown } from 'notion-to-md';
 import { markdownToBlocks } from '@tryfabric/martian';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
-const FILE = path.join(DIR, '..', 'notion.md');  // 워크스페이스 루트의 notion.md
+const FILE = path.join(DIR, 'notion.md');  // CLI와 같은 디렉터리의 notion.md
 const STATE = path.join(DIR, '.sync-state.json');  // 마지막 동기화 시점의 해시
 
 dotenv.config({ path: path.join(DIR, '.env'), quiet: true });
@@ -64,7 +64,7 @@ async function push(md) {
 }
 
 function backup(suffix) {
-  const dest = path.join(DIR, `notion.${suffix}.md`);  // 백업은 루트가 아니라 notion/ 안에
+  const dest = path.join(DIR, `notion.${suffix}.md`);  // 백업은 utils/notion/ 안에
   fs.copyFileSync(FILE, dest);
   return path.basename(dest);
 }

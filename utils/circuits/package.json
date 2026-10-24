@@ -1,0 +1,8 @@
+{
+  "name": "textbook-circuits",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "node build.mjs", "test": "node --test", "cli": "node cli.mjs" },
+  "engines": { "node": ">=20" }
+}

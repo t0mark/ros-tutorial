@@ -1,0 +1,1466 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>프로세스 간 통신</title>
+<meta name="description" content="코드가 프로세스가 되는 과정부터 파이프, 공유 메모리, 소켓, 그리고 ROS가 통신을 추상화하는 방식까지 개념 중심으로 설명하는 학습 자료">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;600;800&family=Nanum+Gothic+Coding:wght@400;700&display=swap">
+<link rel="stylesheet" href="../../assets/style.css">
+<script src="../../assets/site.js"></script>
+</head>
+<body data-page="ipc" data-brand="IPC" data-name="프로세스 간 통신" data-home="../../index.html">
+<div class="shell">
+<main id="top">
+
+<header class="intro">
+  <div class="manline"><span>IPC</span><span>프로세스 간 통신</span><span>10장 + 부록</span></div>
+  <h1>프로세스끼리 데이터를 주고받는 방법</h1>
+  <p>코드가 실행되어 프로세스가 되는 과정에서 출발해, 프로세스끼리 왜 통신해야 하는지, 한 컴퓨터 안과 컴퓨터 사이에서 각각 어떤 방법으로 데이터를 주고받는지 차례로 설명합니다. 마지막으로 ROS가 이 모든 것을 어떻게 감싸서 로봇 개발자에게 단순한 개념으로 보여 주는지 살펴봅니다.</p>
+  <div class="legend">
+    <span><code>$</code> 터미널에 입력</span>
+    <span><code>&gt;&gt;&gt;</code> Python 대화형 셸에 입력</span>
+    <span><code># 회색 글씨</code> 설명 (입력하지 않음)</span>
+  </div>
+  <div class="route" aria-label="학습 순서">
+    <a href="#c1">코드 실행</a><span>→</span><a href="#c2">메모리 구조</a><span>→</span><a href="#c3">통신이 필요한 이유</a><span>→</span><a href="#c4">파이프·시그널</a><span>→</span><a href="#c5">공유 메모리</a><span>→</span><a href="#c6">네트워크</a><span>→</span><a href="#c7">소켓</a><span>→</span><a href="#c8">비교</a><span>→</span><a href="#c9">한계</a><span>→</span><a href="#c10">ROS</a>
+  </div>
+</header>
+
+<!-- ===================== 1 ===================== -->
+<section class="lec" id="c1" data-num="1" data-group="Ⅰ. 코드가 프로세스가 되기까지" data-title="코드가 실행되는 원리">
+  <div class="manhead"><b>EXECVE(2)</b><span>1장</span><span>From Code to Process</span></div>
+  <h2>코드가 실행되는 원리<small>기계어 · 컴파일러 · 인터프리터 · 바이트코드 · 프로그램과 프로세스 · fork · exec</small></h2>
+  <p class="lead">우리가 쓴 코드는 쓴 모양 그대로 실행되지 않습니다. CPU가 알아듣는 형태로 바뀌고, 메모리에 올라가 <strong>프로세스</strong>가 되어야 비로소 동작합니다. 이 과정을 알아야 "프로세스끼리는 왜 서로의 데이터를 직접 볼 수 없는지"를 이해할 수 있습니다.</p>
+
+  <h3>CPU는 기계어만 안다</h3>
+  <p>CPU가 실제로 실행할 수 있는 것은 "메모리 몇 번지의 값을 가져와라", "두 값을 더해라", "조건이 맞으면 저 번지로 건너뛰어라" 같은 아주 단순한 명령뿐입니다. 이 명령들을 숫자(0과 1)로 나타낸 것을 <strong>기계어</strong>라고 합니다. 사람이 쓴 코드를 기계어로 바꾸는 방식은 크게 두 가지입니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>컴파일 방식</th><th>인터프리트 방식</th></tr></thead>
+    <tbody>
+      <tr><td>언어 예</td><td>C, C++, Rust</td><td>Python, JavaScript, bash</td></tr>
+      <tr><td>언제 바꾸나</td><td>실행하기 전에 한꺼번에</td><td>실행하면서 조금씩</td></tr>
+      <tr><td>결과물</td><td>기계어로 된 실행 파일</td><td>따로 없음. 인터프리터 프로그램이 코드를 읽으며 실행</td></tr>
+      <tr><td>장점</td><td>실행이 빠름</td><td>바로 실행해 볼 수 있고 고치기 쉬움</td></tr>
+      <tr><td>로봇에서</td><td>모터 제어 루프, 센서 드라이버</td><td>상위 판단 로직, 실험, 도구</td></tr>
+    </tbody>
+  </table></div>
+  <div class="names"><span><code>compile</code><i>compile (모아서 엮다)</i></span><span><code>interpret</code><i>interpret (통역하다)</i></span><span><code>machine code</code><i>기계어</i></span></div>
+
+  <h3>Python 코드가 실행되기까지</h3>
+  <figure class="fig">
+    <div class="cv"><div class="flow">
+      <div class="box">hello.py<small>소스 코드 (글자)</small></div>
+      <div class="mid">→ 변환 →</div>
+      <div class="box">바이트코드<small>Python 전용 명령</small></div>
+      <div class="mid">→ 하나씩 실행 →</div>
+      <div class="box" style="border-color:var(--accent)">python3 프로세스<small>기계어로 CPU에서 동작</small></div>
+    </div></div>
+    <figcaption>Python은 소스 코드를 먼저 <strong>바이트코드</strong>라는 중간 형태로 바꾸고, 인터프리터(<code>python3</code>)가 그 명령을 하나씩 꺼내 실행합니다.</figcaption>
+  </figure>
+  <p>터미널에서 <code>python3 hello.py</code>를 입력하면 다음 일이 차례로 일어납니다.</p>
+  <ol>
+    <li>셸이 새 프로세스를 만들고, 그 안에 <code>/usr/bin/python3</code> 프로그램을 불러옵니다. 이 파일은 C로 작성되어 <strong>기계어로 컴파일된 실행 파일</strong>입니다.</li>
+    <li><code>python3</code>가 <code>hello.py</code>를 읽어 바이트코드로 바꿉니다.</li>
+    <li><code>python3</code> 안의 반복문이 바이트코드 명령을 하나씩 꺼내 해당하는 동작을 수행합니다.</li>
+  </ol>
+  <p>즉 CPU가 실제로 실행하는 기계어는 <strong>python3 인터프리터의 것</strong>이고, 우리가 쓴 코드는 인터프리터가 읽어서 처리하는 <strong>데이터</strong>에 가깝습니다. 이 차이는 2장의 메모리 구조에서 다시 나옵니다.</p>
+  <pre><span class="p">$ </span>file -L /usr/bin/python3                      <span class="c"># -L: 링크를 따라가서 실제 파일 검사</span>
+<span class="o">/usr/bin/python3: ELF 64-bit LSB executable, x86-64, ...</span>   <span class="c"># ELF = 리눅스의 기계어 실행 파일 형식</span>
+<span class="p">$ </span>python3 -c "import dis; dis.dis('y = x + 1')"   <span class="c"># 한 줄짜리 코드의 바이트코드 보기</span>
+<span class="o">  1           0 LOAD_NAME                0 (x)
+              2 LOAD_CONST               0 (1)
+              4 BINARY_ADD
+              6 STORE_NAME               1 (y)
+              8 LOAD_CONST               1 (None)
+             10 RETURN_VALUE</span></pre>
+  <p><code>y = x + 1</code> 한 줄이 "x를 가져와라 → 1을 가져와라 → 더해라 → y에 저장해라"라는 네 개의 명령으로 바뀐 것을 볼 수 있습니다. 다른 파일에서 <code>import</code>한 모듈은 이렇게 바꾼 결과를 <code>__pycache__</code> 폴더에 <code>.pyc</code> 파일로 저장해 두고, 다음 실행 때 변환을 건너뜁니다.</p>
+  <div class="names"><span><code>dis</code><i><b>dis</b>assemble (기계어·바이트코드를 읽을 수 있게 풀기)</i></span><span><code>ELF</code><i><b>E</b>xecutable and <b>L</b>inkable <b>F</b>ormat</i></span><span><code>.pyc</code><i><b>py</b>thon <b>c</b>ompiled</i></span></div>
+
+  <h3>프로그램과 프로세스</h3>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>프로그램 (program)</th><th>프로세스 (process)</th></tr></thead>
+    <tbody>
+      <tr><td>무엇</td><td>디스크에 저장된 파일</td><td>메모리에 올라가 실행 중인 프로그램</td></tr>
+      <tr><td>상태</td><td>가만히 있음 (정적)</td><td>계속 변함 (동적): 변수 값, 실행 위치</td></tr>
+      <tr><td>개수</td><td><code>/usr/bin/python3</code> 하나</td><td>같은 프로그램으로 여러 개를 동시에 실행할 수 있음</td></tr>
+      <tr><td>커널이 붙여 주는 것</td><td>없음</td><td>PID, 자기만의 메모리 공간, 열린 파일 목록(fd), 실행 상태</td></tr>
+    </tbody>
+  </table></div>
+  <pre><span class="p">$ </span>python3 -c "import time; time.sleep(60)" &amp;
+<span class="o">[1] 6120</span>
+<span class="p">$ </span>python3 -c "import time; time.sleep(60)" &amp;
+<span class="o">[2] 6131</span>
+<span class="p">$ </span>pgrep -a python3                <span class="c"># 같은 프로그램, 다른 프로세스 두 개</span>
+<span class="o">6120 python3 -c import time; time.sleep(60)
+6131 python3 -c import time; time.sleep(60)</span></pre>
+  <p>셸이 명령을 실행할 때는 두 단계를 거칩니다. 먼저 <code>fork</code>로 자기 자신(셸)을 똑같이 복제해 자식 프로세스를 만들고, 그 자식이 <code>exec</code>로 자기 내용을 새 프로그램(<code>python3</code>)으로 갈아 끼웁니다. 그래서 터미널에서 실행한 명령의 부모는 항상 셸입니다(리눅스 첫걸음 9장). <code>fork</code>는 2장에서 직접 써 봅니다.</p>
+  <div class="names"><span><code>fork</code><i>fork (갈래로 나뉘다)</i></span><span><code>exec</code><i><b>exec</b>ute (실행하다)</i></span><span><code>pgrep -a</code><i><b>a</b>ll (명령 전체 표시)</i></span></div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>CPU가 직접 실행할 수 있는 것은 무엇인가?</summary><div class="a"><p>기계어뿐입니다. 다른 모든 코드는 컴파일러가 미리 기계어로 바꾸거나, 기계어로 된 인터프리터가 읽어서 대신 실행합니다.</p></div></details>
+    <details class="q"><summary><code>python3 hello.py</code>를 실행했을 때 CPU에서 돌아가는 기계어는 누구의 것인가?</summary><div class="a"><p><code>python3</code> 인터프리터의 기계어입니다. <code>hello.py</code>는 바이트코드로 바뀌어 인터프리터가 읽어 처리하는 데이터가 됩니다.</p></div></details>
+    <details class="q"><summary>프로그램과 프로세스의 차이는?</summary><div class="a"><p>프로그램은 디스크에 있는 파일이고, 프로세스는 그 프로그램이 메모리에 올라가 실행 중인 상태입니다. 하나의 프로그램으로 PID가 다른 여러 프로세스를 동시에 실행할 수 있습니다.</p></div></details>
+    <details class="q"><summary>셸이 명령을 실행할 때 쓰는 두 단계는?</summary><div class="a"><p><code>fork</code>로 자신을 복제해 자식을 만들고, 자식이 <code>exec</code>로 새 프로그램으로 바뀝니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 2 ===================== -->
+<section class="lec" id="c2" data-num="2" data-group="Ⅰ. 코드가 프로세스가 되기까지" data-title="프로세스의 메모리 구조">
+  <div class="manhead"><b>PROC(5)</b><span>2장</span><span>Process Memory Layout</span></div>
+  <h2>프로세스의 메모리 구조<small>로직 영역 · 데이터 영역 · text · data · bss · heap · stack · 가상 메모리 · /proc/PID/maps · fork</small></h2>
+  <p class="lead">프로그램이 프로세스가 되면 커널은 그 프로세스만 쓰는 메모리 공간을 만들어 줍니다. 이 공간은 실행할 명령이 들어가는 <strong>로직 영역</strong>과, 값을 담는 <strong>데이터 영역</strong>으로 나뉩니다. 그리고 이 공간은 다른 프로세스와 완전히 분리되어 있습니다.</p>
+
+  <h3>메모리 공간의 구성</h3>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 360" role="img" aria-label="프로세스 메모리 구조: 위에서부터 스택, 빈 공간, 힙, BSS, 데이터, 코드">
+        <text class="ts c" x="300" y="14">높은 주소</text>
+        <rect class="bx" x="180" y="28" width="240" height="48" rx="4"/>
+        <text class="tb c" x="300" y="44">스택 (stack)</text>
+        <text class="ts c" x="300" y="63">함수 호출 기록 · 지역 변수</text>
+        <rect class="bx-mute" x="180" y="80" width="240" height="64" rx="4"/>
+        <path class="ln" d="M260 86 L260 108"/><text class="ts" x="268" y="100">스택은 아래로 자람</text>
+        <path class="ln" d="M260 138 L260 116"/><text class="ts" x="268" y="128">힙은 위로 자람</text>
+        <rect class="bx" x="180" y="148" width="240" height="48" rx="4"/>
+        <text class="tb c" x="300" y="164">힙 (heap)</text>
+        <text class="ts c" x="300" y="183">실행 중에 필요할 때 만드는 데이터</text>
+        <rect class="bx" x="180" y="200" width="240" height="40" rx="4"/>
+        <text class="tb c" x="300" y="213">BSS</text>
+        <text class="ts c" x="300" y="229">초기값 없는 전역 변수 (0으로 채움)</text>
+        <rect class="bx" x="180" y="244" width="240" height="40" rx="4"/>
+        <text class="tb c" x="300" y="257">데이터 (data)</text>
+        <text class="ts c" x="300" y="273">초기값 있는 전역 변수</text>
+        <rect class="bx-a" x="180" y="288" width="240" height="48" rx="4"/>
+        <text class="tb c" x="300" y="304">코드 (text)</text>
+        <text class="ts c" x="300" y="323">기계어 명령 · 읽기와 실행만 가능</text>
+        <text class="ts c" x="300" y="350">낮은 주소</text>
+        <path class="edge" d="M432 30 H444 V282 H432"/>
+        <text class="tb" x="456" y="148">데이터 영역</text>
+        <text class="ts" x="456" y="168">값을 담는 곳</text>
+        <text class="ts" x="456" y="184">읽기 · 쓰기 가능</text>
+        <path class="edge-a" d="M432 290 H444 V334 H432"/>
+        <text class="tb ta" x="456" y="306">로직 영역</text>
+        <text class="ts" x="456" y="324">할 일(명령)이 있는 곳</text>
+        <text class="ts c" x="90" y="52">함수가 끝나면</text>
+        <text class="ts c" x="90" y="68">자동으로 사라짐</text>
+        <text class="ts c" x="90" y="164">직접 만들고</text>
+        <text class="ts c" x="90" y="180">다 쓰면 해제</text>
+        <text class="ts c" x="90" y="244">프로그램이 끝날</text>
+        <text class="ts c" x="90" y="260">때까지 유지</text>
+      </svg>
+    </div>
+    <figcaption>리눅스 프로세스의 메모리 구조. 아래쪽 <strong>코드(text)</strong>가 로직 영역이고, 그 위의 데이터·BSS·힙·스택이 데이터 영역입니다. 스택과 힙은 실행하면서 크기가 바뀌므로 그 사이에 빈 공간이 있습니다.</figcaption>
+  </figure>
+  <div class="tbl"><table>
+    <thead><tr><th>영역</th><th>들어가는 것</th><th>크기</th><th>C 코드 예</th><th>Python 프로세스에서는</th></tr></thead>
+    <tbody>
+      <tr><td><strong>코드</strong> (text)</td><td>기계어 명령</td><td>실행 파일에서 읽어 고정</td><td>함수 본문</td><td><code>python3</code> 인터프리터의 기계어</td></tr>
+      <tr><td><strong>데이터</strong> (data)</td><td>초기값이 있는 전역·static 변수</td><td>고정</td><td><code>int speed = 10;</code></td><td>인터프리터 내부의 전역 값</td></tr>
+      <tr><td><strong>BSS</strong></td><td>초기값이 없는 전역 변수</td><td>고정</td><td><code>int count;</code></td><td>인터프리터 내부의 전역 값</td></tr>
+      <tr><td><strong>힙</strong> (heap)</td><td>실행 중에 만들고 지우는 데이터</td><td>늘었다 줄었다 함</td><td><code>malloc()</code>으로 받은 메모리</td><td>내가 만든 <strong>모든 객체</strong>: 숫자, 리스트, 함수, 바이트코드까지</td></tr>
+      <tr><td><strong>스택</strong> (stack)</td><td>함수 호출 기록, 지역 변수, 돌아갈 위치</td><td>함수 호출마다 쌓였다 사라짐</td><td>함수 안의 <code>int i;</code></td><td>인터프리터 자신의 함수 호출 기록</td></tr>
+    </tbody>
+  </table></div>
+  <div class="names"><span><code>text</code><i>text (명령문, 코드)</i></span><span><code>BSS</code><i><b>B</b>lock <b>S</b>tarted by <b>S</b>ymbol</i></span><span><code>heap</code><i>heap (더미, 쌓아 둔 것)</i></span><span><code>stack</code><i>stack (차곡차곡 쌓다)</i></span><span><code>malloc</code><i><b>m</b>emory <b>alloc</b>ate (메모리 할당)</i></span></div>
+  <div class="note"><b class="t">내 Python 코드는 어디에 있나</b>C로 쓴 프로그램은 내가 쓴 함수가 컴파일되어 곧바로 코드(text) 영역에 들어갑니다. Python은 다릅니다. 코드 영역에 있는 것은 <code>python3</code>의 기계어이고, 내가 쓴 함수와 변수, 바이트코드는 모두 인터프리터가 다루는 <strong>객체</strong>라서 힙에 있습니다. 1장에서 "내 코드는 인터프리터의 데이터에 가깝다"고 한 것이 이 뜻입니다.</div>
+
+  <h3>직접 보기: /proc/PID/maps</h3>
+  <p>리눅스는 실행 중인 프로세스의 정보를 <code>/proc/PID/</code> 아래에 파일처럼 보여 줍니다. 그중 <code>maps</code>는 그 프로세스의 메모리가 어떤 구역으로 나뉘어 있는지 보여 줍니다.</p>
+  <pre><span class="p">$ </span>python3 -c "import time; time.sleep(300)" &amp;
+<span class="o">[1] 6120</span>
+<span class="p">$ </span>cat /proc/6120/maps
+<span class="o">00400000-00423000 r--p 00000000 08:02 1835  /usr/bin/python3.10
+00423000-0067a000 r-xp 00023000 08:02 1835  /usr/bin/python3.10</span>   <span class="c"># x: 실행 가능 → 코드(로직) 영역</span>
+<span class="o">...
+008f0000-0093b000 rw-p 004ef000 08:02 1835  /usr/bin/python3.10</span>   <span class="c"># w: 쓰기 가능 → 데이터·BSS</span>
+<span class="o">01a2b000-01c4e000 rw-p 00000000 00:00 0     [heap]</span>              <span class="c"># 힙</span>
+<span class="o">...
+7ffd3c2e0000-7ffd3c301000 rw-p 00000000 00:00 0  [stack]</span>       <span class="c"># 스택 (높은 주소)</span>
+<span class="p">$ </span>kill %1</pre>
+  <p>주소와 줄 수는 컴퓨터와 실행마다 다릅니다. 둘째 칸의 권한 표시를 보면 각 구역의 성격을 알 수 있습니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>글자</th><th>원래 이름</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td><code>r</code></td><td class="onm"><b>r</b>ead</td><td>읽을 수 있음</td></tr>
+      <tr><td><code>w</code></td><td class="onm"><b>w</b>rite</td><td>쓸 수 있음 → 데이터 영역</td></tr>
+      <tr><td><code>x</code></td><td class="onm">e<b>x</b>ecute</td><td>CPU가 명령으로 실행할 수 있음 → 코드 영역</td></tr>
+      <tr><td><code>p</code> / <code>s</code></td><td class="onm"><b>p</b>rivate / <b>s</b>hared</td><td>이 프로세스 전용 / 다른 프로세스와 공유 (5장)</td></tr>
+    </tbody>
+  </table></div>
+  <p>코드 영역은 <code>r-x</code>로 쓰기가 막혀 있고, 데이터 영역은 <code>rw-</code>로 실행이 막혀 있습니다. 실수나 공격으로 명령이 바뀌거나 데이터가 명령처럼 실행되는 것을 막기 위해서입니다.</p>
+
+  <h3>가상 메모리: 프로세스마다 자기만의 주소</h3>
+  <p><code>maps</code>에 나온 주소는 RAM의 실제 위치가 아니라 <strong>가상 주소</strong>입니다. CPU 안의 MMU라는 장치가 커널이 만든 표(<strong>페이지 테이블</strong>)를 보고, 가상 주소를 실제 메모리 주소로 바꿔 줍니다. 이 연결은 보통 4KB 크기의 <strong>페이지</strong> 단위로 이루어집니다.</p>
+  <p>핵심은 <strong>페이지 테이블이 프로세스마다 따로 있다</strong>는 점입니다. 두 프로세스가 똑같은 주소 <code>0x5000</code>을 읽어도 각자의 표를 거치므로 서로 다른 실제 메모리에 닿습니다. 다른 프로세스의 메모리는 자기 표에 아예 없으므로, 주소로 가리킬 방법조차 없습니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 260" role="img" aria-label="두 프로세스의 가상 주소가 각자의 페이지 테이블을 거쳐 서로 다른 실제 메모리에 연결됨">
+        <text class="tb c" x="105" y="16">프로세스 A</text>
+        <text class="tb c" x="320" y="16">실제 메모리 (RAM)</text>
+        <text class="tb c" x="535" y="16">프로세스 B</text>
+        <rect class="bx" x="30" y="40" width="150" height="34" rx="4"/><text class="t c" x="105" y="57">코드</text>
+        <rect class="bx" x="30" y="90" width="150" height="34" rx="4"/><text class="t c" x="105" y="107">데이터 · 힙</text>
+        <rect class="bx" x="30" y="140" width="150" height="34" rx="4"/><text class="t c" x="105" y="157">스택</text>
+        <text class="ts tm c" x="105" y="196">주소 0x5000 → ①</text>
+        <rect class="bx" x="460" y="40" width="150" height="34" rx="4"/><text class="t c" x="535" y="57">코드</text>
+        <rect class="bx" x="460" y="90" width="150" height="34" rx="4"/><text class="t c" x="535" y="107">데이터 · 힙</text>
+        <rect class="bx" x="460" y="140" width="150" height="34" rx="4"/><text class="t c" x="535" y="157">스택</text>
+        <text class="ts tm c" x="535" y="196">주소 0x5000 → ④</text>
+        <rect class="bx-mute" x="255" y="30" width="130" height="30" rx="3"/><text class="ts c" x="320" y="45">① A의 페이지</text>
+        <rect class="bx-mute" x="255" y="66" width="130" height="30" rx="3"/><text class="ts c" x="320" y="81">② A의 페이지</text>
+        <rect class="bx-mute" x="255" y="102" width="130" height="30" rx="3"/><text class="ts c" x="320" y="117">③ A의 페이지</text>
+        <rect class="bx-mute" x="255" y="138" width="130" height="30" rx="3"/><text class="ts c" x="320" y="153">④ B의 페이지</text>
+        <rect class="bx-mute" x="255" y="174" width="130" height="30" rx="3"/><text class="ts c" x="320" y="189">⑤ B의 페이지</text>
+        <rect class="bx-mute" x="255" y="210" width="130" height="30" rx="3"/><text class="ts c" x="320" y="225">⑥ B의 페이지</text>
+        <path class="ln" d="M180 57 L251 45"/>
+        <path class="ln" d="M180 107 L251 81"/>
+        <path class="ln" d="M180 157 L251 117"/>
+        <path class="ln-a" d="M460 57 L389 153"/>
+        <path class="ln-a" d="M460 107 L389 189"/>
+        <path class="ln-a" d="M460 157 L389 225"/>
+      </svg>
+    </div>
+    <figcaption>두 프로세스는 같은 가상 주소를 써도 서로 다른 실제 메모리에 연결됩니다. A의 표에는 ④~⑥이 없고 B의 표에는 ①~③이 없으므로, 상대의 메모리를 읽거나 쓸 방법이 없습니다.</figcaption>
+  </figure>
+  <div class="names"><span><code>MMU</code><i><b>M</b>emory <b>M</b>anagement <b>U</b>nit</i></span><span><code>page</code><i>page (메모리를 나누는 단위, 보통 4KB)</i></span><span><code>virtual</code><i>virtual (가상의)</i></span></div>
+  <div class="note"><b class="t">격리가 주는 이점</b>한 프로세스가 잘못된 주소에 접근하면 커널이 그 프로세스만 <code>Segmentation fault</code>로 끝내고, 다른 프로세스는 아무 영향도 받지 않습니다. 로봇에서 카메라 처리 프로그램이 오류로 죽어도 모터 제어 프로그램은 계속 돌 수 있는 이유가 이것입니다.</div>
+
+  <h3>확인: fork한 두 프로세스는 메모리를 공유하지 않는다</h3>
+  <p><code>os.fork()</code>는 지금 프로세스를 통째로 복제해 자식 프로세스를 만듭니다. 복제 직후에는 메모리 내용이 똑같지만, 그 뒤로는 각자의 메모리를 씁니다.</p>
+  <pre data-label="fork_memory.py">import os
+
+data = [1, 2, 3]
+pid = os.fork()                 <span class="c"># 여기서 프로세스가 둘로 갈라짐</span>
+
+if pid == 0:                    <span class="c"># 자식: fork() 가 0 을 돌려줌</span>
+    data.append(99)
+    print(f"[자식 {os.getpid()}] data = {data}, 주소 = {hex(id(data))}")
+else:                           <span class="c"># 부모: fork() 가 자식의 PID 를 돌려줌</span>
+    os.waitpid(pid, 0)          <span class="c"># 자식이 끝날 때까지 기다림</span>
+    print(f"[부모 {os.getpid()}] data = {data}, 주소 = {hex(id(data))}")</pre>
+  <pre><span class="p">$ </span>python3 fork_memory.py
+<span class="o">[자식 7302] data = [1, 2, 3, 99], 주소 = 0x7f3a2c1b8e40
+[부모 7301] data = [1, 2, 3], 주소 = 0x7f3a2c1b8e40</span></pre>
+  <p><code>id()</code>로 객체의 메모리 주소를 볼 수 있습니다. 두 프로세스에서 <code>data</code>의 <strong>주소는 같은데 값은 다릅니다</strong>. 같은 가상 주소가 각자의 페이지 테이블을 거쳐 서로 다른 실제 메모리를 가리키기 때문입니다. 자식이 리스트에 99를 넣어도 부모에게는 전혀 보이지 않습니다.</p>
+  <div class="note"><b class="t">Copy-on-Write</b>fork할 때 메모리를 정말 전부 복사하면 느립니다. 그래서 커널은 처음에는 두 프로세스가 같은 실제 페이지를 읽기 전용으로 함께 쓰게 하고, 어느 한쪽이 <strong>쓰는 순간</strong> 그 페이지만 복사해 나눠 줍니다. 덕분에 fork가 빠르지만, 결과적으로 서로의 변경이 보이지 않는다는 점은 같습니다.</div>
+  <div class="names"><span><code>os.fork()</code><i>자식에게 0, 부모에게 자식 PID 반환</i></span><span><code>waitpid</code><i><b>wait</b> for <b>pid</b></i></span><span><code>COW</code><i><b>C</b>opy-<b>O</b>n-<b>W</b>rite (쓸 때 복사)</i></span></div>
+  <p>정리하면, 프로세스 격리는 안정성의 바탕이지만 프로세스끼리 데이터를 나눠야 할 때는 넘을 수 없는 벽이 됩니다. 이 벽을 넘으려면 커널이 따로 마련해 주는 통로가 필요합니다. 그 통로가 <strong>프로세스 간 통신(IPC)</strong>입니다.</p>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>로직 영역과 데이터 영역에는 각각 무엇이 들어가나?</summary><div class="a"><p>로직 영역(코드, text)에는 CPU가 실행할 기계어 명령이, 데이터 영역(data, BSS, 힙, 스택)에는 전역 변수, 실행 중에 만든 객체, 지역 변수와 함수 호출 기록 같은 값이 들어갑니다.</p></div></details>
+    <details class="q"><summary>C의 지역 변수, <code>malloc</code>으로 받은 메모리, Python의 리스트는 각각 어느 영역에 있나?</summary><div class="a"><p>지역 변수는 스택, <code>malloc</code>으로 받은 메모리는 힙, Python 리스트(를 포함한 모든 Python 객체)는 힙에 있습니다.</p></div></details>
+    <details class="q"><summary><code>/proc/PID/maps</code>에서 권한이 <code>r-xp</code>인 줄은 어떤 영역인가?</summary><div class="a"><p>실행(x)은 되고 쓰기(w)는 안 되는 영역이므로 코드(text), 즉 로직 영역입니다.</p></div></details>
+    <details class="q"><summary>fork 예제에서 부모와 자식의 <code>data</code> 주소가 같은데 값이 다른 이유는?</summary><div class="a"><p>출력된 주소는 가상 주소이고, 페이지 테이블이 프로세스마다 따로 있어 같은 가상 주소가 서로 다른 실제 메모리를 가리키기 때문입니다. 자식이 쓰는 순간 그 페이지가 복사됩니다(Copy-on-Write).</p></div></details>
+    <details class="q"><summary>한 프로세스가 <code>Segmentation fault</code>로 죽으면 다른 프로세스는?</summary><div class="a"><p>영향이 없습니다. 메모리가 격리되어 있어 잘못된 접근은 그 프로세스 안에서만 일어나고, 커널은 그 프로세스만 끝냅니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 3 ===================== -->
+<section class="lec" id="c3" data-num="3" data-group="Ⅱ. 왜 통신이 필요한가" data-title="통신이 필요한 이유">
+  <div class="manhead"><b>IPC(7)</b><span>3장</span><span>Why Processes Talk</span></div>
+  <h2>프로세스 간 통신이 필요한 이유<small>격리와 협력 · 로봇 소프트웨어 구조 · 데이터 크기와 주기 · 통신의 조건 · IPC 분류</small></h2>
+  <p class="lead">프로세스가 격리되어 있다는 것은 안전하다는 뜻이지만, 동시에 혼자서는 아무것도 나눌 수 없다는 뜻입니다. 로봇처럼 여러 일을 동시에 처리하는 시스템에서는 이 문제가 곧바로 드러납니다.</p>
+
+  <h3>로봇 소프트웨어는 여러 프로세스로 이루어진다</h3>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 250" role="img" aria-label="센서에서 인지, 위치 추정, 경로 계획, 제어, 모터 드라이버로 이어지는 로봇 소프트웨어의 데이터 흐름">
+        <rect class="bx" x="20" y="20" width="110" height="36" rx="4"/><text class="t c" x="75" y="38">카메라</text>
+        <rect class="bx" x="20" y="70" width="110" height="36" rx="4"/><text class="t c" x="75" y="88">라이다</text>
+        <rect class="bx" x="20" y="120" width="110" height="36" rx="4"/><text class="t c" x="75" y="138">IMU</text>
+        <rect class="bx" x="20" y="170" width="110" height="36" rx="4"/><text class="t c" x="75" y="188">바퀴 엔코더</text>
+        <rect class="bx" x="180" y="40" width="120" height="50" rx="4"/><text class="tb c" x="240" y="57">인지</text><text class="ts c" x="240" y="75">장애물 · 물체 인식</text>
+        <rect class="bx" x="180" y="130" width="120" height="50" rx="4"/><text class="tb c" x="240" y="147">위치 추정</text><text class="ts c" x="240" y="165">SLAM · 오도메트리</text>
+        <rect class="bx" x="350" y="85" width="110" height="50" rx="4"/><text class="tb c" x="405" y="102">경로 계획</text><text class="ts c" x="405" y="120">어디로 갈지</text>
+        <rect class="bx" x="505" y="40" width="120" height="50" rx="4"/><text class="tb c" x="565" y="57">제어</text><text class="ts c" x="565" y="75">속도 명령 계산</text>
+        <rect class="bx-a" x="505" y="130" width="120" height="50" rx="4"/><text class="tb c" x="565" y="147">모터 드라이버</text><text class="ts c" x="565" y="165">바퀴 회전</text>
+        <path class="ln" d="M130 38 L176 56"/>
+        <path class="ln" d="M130 88 L176 74"/>
+        <path class="ln" d="M130 94 L176 140"/>
+        <path class="ln" d="M130 138 L176 152"/>
+        <path class="ln" d="M130 188 L176 168"/>
+        <path class="ln" d="M300 65 L346 100"/>
+        <path class="ln" d="M300 155 L346 120"/>
+        <path class="ln" d="M460 105 L501 72"/>
+        <path class="ln-a" d="M565 90 L565 126"/>
+        <text class="ts c" x="320" y="232">상자 하나 = 보통 프로세스 하나 · 화살표 하나 = 프로세스 간 데이터 흐름</text>
+      </svg>
+    </div>
+    <figcaption>바퀴로 움직이는 자율주행 로봇의 소프트웨어 구성 예. 센서마다 드라이버 프로세스가 있고, 그 데이터를 여러 처리 프로세스가 받아 최종적으로 모터 명령을 만듭니다. 모든 화살표가 프로세스 간 통신입니다.</figcaption>
+  </figure>
+  <p>이 일을 전부 하나의 프로그램에 넣을 수도 있지만, 실제 로봇은 거의 항상 여러 프로세스로 나눕니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>이유</th><th>설명</th><th>로봇에서의 예</th></tr></thead>
+    <tbody>
+      <tr><td>장애 격리</td><td>한 부분이 죽어도 나머지는 계속 동작 (2장)</td><td>카메라 처리가 오류로 죽어도 비상 정지와 모터 제어는 유지</td></tr>
+      <tr><td>주기가 다름</td><td>각 작업이 자기 속도로 반복</td><td>IMU 200Hz, 카메라 30Hz, 라이다 10Hz, 경로 계획 1Hz</td></tr>
+      <tr><td>여러 CPU 코어 활용</td><td>프로세스는 서로 다른 코어에서 동시에 실행됨</td><td>인식과 지도 작성을 동시에 계산</td></tr>
+      <tr><td>다른 언어 · 라이브러리</td><td>각 부분에 맞는 도구 선택</td><td>빠른 C++ 드라이버 + Python 인공지능 모델</td></tr>
+      <tr><td>재사용과 분업</td><td>부분 단위로 만들고 바꿈</td><td>같은 라이다 드라이버를 다른 로봇에 그대로 사용, 팀원별로 담당 프로세스 개발</td></tr>
+      <tr><td>여러 컴퓨터</td><td>한 로봇 안에도 컴퓨터가 여러 대</td><td>로봇 안의 메인 PC + 모터용 마이크로컨트롤러 + 원격 모니터링 노트북</td></tr>
+    </tbody>
+  </table></div>
+  <div class="names"><span><code>Hz</code><i><b>h</b>ert<b>z</b> (초당 횟수)</i></span><span><code>IMU</code><i><b>I</b>nertial <b>M</b>easurement <b>U</b>nit (관성 측정 장치)</i></span><span><code>SLAM</code><i><b>S</b>imultaneous <b>L</b>ocalization <b>A</b>nd <b>M</b>apping</i></span></div>
+
+  <h3>얼마나 많은 데이터가 오가나</h3>
+  <p>통신 방법을 고르려면 데이터의 크기와 주기를 알아야 합니다. 로봇에서 흔한 데이터를 대략 계산하면 다음과 같습니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>데이터</th><th>한 번의 크기</th><th>주기</th><th>초당 양</th></tr></thead>
+    <tbody>
+      <tr><td>속도 명령 (직진 속도, 회전 속도: 실수 2개)</td><td class="num">16 B</td><td class="num">20 Hz</td><td class="num">320 B/s</td></tr>
+      <tr><td>IMU (가속도 3 + 각속도 3: 실수 6개)</td><td class="num">48 B</td><td class="num">200 Hz</td><td class="num">9.6 KB/s</td></tr>
+      <tr><td>2D 라이다 한 바퀴 (거리 360개, 4바이트씩)</td><td class="num">1.4 KB</td><td class="num">10 Hz</td><td class="num">14 KB/s</td></tr>
+      <tr><td>깊이 카메라 640×480 (화소당 2바이트)</td><td class="num">614 KB</td><td class="num">30 Hz</td><td class="num">18 MB/s</td></tr>
+      <tr><td>컬러 카메라 640×480 (화소당 RGB 3바이트)</td><td class="num">922 KB</td><td class="num">30 Hz</td><td class="num">약 28 MB/s</td></tr>
+      <tr><td>3D 라이다 포인트 클라우드 (점 10만 개, 16바이트씩)</td><td class="num">1.6 MB</td><td class="num">10 Hz</td><td class="num">16 MB/s</td></tr>
+    </tbody>
+  </table></div>
+  <p>명령이나 IMU 같은 작은 데이터는 어떤 방법으로 보내도 부담이 없습니다. 하지만 영상과 포인트 클라우드는 초당 수십 MB이므로, <strong>데이터를 몇 번 복사하느냐</strong>가 성능을 크게 좌우합니다. 이 차이가 4장(복사하는 방식)과 5장(복사하지 않는 방식)을 나누는 기준입니다.</p>
+
+  <h3>통신 방법이 갖춰야 할 것</h3>
+  <ul>
+    <li><strong>지연 시간</strong>(latency): 보낸 뒤 받을 때까지 걸리는 시간. 정지 명령이 0.5초 늦으면 로봇은 이미 벽에 부딪혀 있습니다.</li>
+    <li><strong>대역폭</strong>(bandwidth): 초당 보낼 수 있는 양. 위 표의 카메라 데이터를 감당할 수 있어야 합니다.</li>
+    <li><strong>신뢰성</strong>: 빠짐없이, 순서대로 도착해야 하는가? "임무 시작" 같은 명령은 하나라도 빠지면 안 되지만, 센서 값은 하나 빠지더라도 <strong>가장 최신 값</strong>을 빨리 받는 것이 더 중요합니다.</li>
+    <li><strong>1:N 전달</strong>: 라이다 데이터 하나를 장애물 인식, 지도 작성, 기록 프로그램이 동시에 받아야 합니다.</li>
+    <li><strong>동기화</strong>: 한쪽이 데이터를 쓰는 도중에 다른 쪽이 읽으면 반쯤 바뀐 데이터를 받게 됩니다.</li>
+    <li><strong>범위</strong>: 같은 컴퓨터 안의 통신인가, 다른 컴퓨터와의 통신인가?</li>
+  </ul>
+  <div class="names"><span><code>latency</code><i>latency (지연)</i></span><span><code>bandwidth</code><i>bandwidth (대역폭, 처리량)</i></span></div>
+
+  <h3>IPC: 커널이 마련해 주는 통로</h3>
+  <p>프로세스는 서로의 메모리를 직접 볼 수 없지만, 모든 프로세스는 <strong>시스템 콜</strong>로 커널에게 일을 부탁할 수 있습니다. 그래서 모든 IPC는 결국 커널이 만들어 주는 통로입니다. 커널이 데이터를 받아서 상대에게 넘겨주거나(복사), 같은 메모리를 두 프로세스에 함께 연결해 줍니다(공유).</p>
+  <div class="names"><span><code>IPC</code><i><b>I</b>nter-<b>P</b>rocess <b>C</b>ommunication</i></span><span><code>system call</code><i>프로그램이 커널에 기능을 요청하는 방법</i></span></div>
+
+  <h3>모든 통신의 공통 구조: 보내고, 거쳐서, 받는다</h3>
+  <p>앞으로 볼 통신 방법은 여러 가지지만 뼈대는 모두 같습니다. <strong>보내는 쪽</strong>이 데이터를 <strong>통로</strong>에 넣고(①), <strong>받는 쪽</strong>이 통로에서 꺼냅니다(②). 방법마다 달라지는 것은 가운데 통로가 무엇인지와 ①, ②에 쓰는 함수뿐입니다.</p>
+  <figure class="fig">
+    <div class="cv"><div class="comm">
+      <div class="end"><b>보내는 쪽</b><span>프로세스 A</span></div>
+      <div class="step"><span class="no">① 보내기</span><span class="ar"></span><small>데이터를 통로에 넣음</small></div>
+      <div class="chan"><b>통로</b><span>데이터가 잠시 머무는 곳</span></div>
+      <div class="step"><span class="no">② 받기</span><span class="ar"></span><small>통로에서 꺼냄</small></div>
+      <div class="end"><b>받는 쪽</b><span>프로세스 B</span></div>
+      <div class="foot">
+        <span><b>통로</b>어디에 있나?</span>
+        <span><b>복사</b>몇 번 복사되나?</span>
+        <span><b>도착</b>새 데이터가 온 것을 어떻게 아나?</span>
+        <span><b>상대</b>누구끼리 쓸 수 있나?</span>
+      </div>
+    </div></div>
+    <figcaption>통신의 공통 구조. 아래 칸 네 가지가 방법마다 다르고, 이 차이가 각 방법의 장단점이 됩니다.</figcaption>
+  </figure>
+  <p>4장부터는 각 방법을 <strong>이 그림과 같은 모양</strong>으로 다시 그립니다. 그림을 비교하면서 가운데 통로와 아래 네 칸이 어떻게 바뀌는지 보면, 방법마다의 차이가 한눈에 들어옵니다.</p>
+
+  <div class="tbl"><table>
+    <thead><tr><th>방법</th><th>데이터 전달 방식</th><th>범위</th><th>다루는 장</th></tr></thead>
+    <tbody>
+      <tr><td>파일</td><td>디스크(또는 커널의 캐시)를 거쳐 복사</td><td>같은 컴퓨터</td><td>4장</td></tr>
+      <tr><td>파이프</td><td>커널 버퍼를 거쳐 복사</td><td>같은 컴퓨터</td><td>4장</td></tr>
+      <tr><td>시그널</td><td>데이터 없이 알림 번호만</td><td>같은 컴퓨터</td><td>4장</td></tr>
+      <tr><td>공유 메모리</td><td>복사 없이 같은 메모리를 함께 봄</td><td>같은 컴퓨터</td><td>5장</td></tr>
+      <tr><td>소켓</td><td>커널(네트워크 스택)을 거쳐 복사</td><td>같은 컴퓨터, 다른 컴퓨터</td><td>6 · 7장</td></tr>
+      <tr><td>ROS</td><td>위 방법 중 알맞은 것을 자동으로 사용</td><td>둘 다</td><td>9 · 10장</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>로봇 소프트웨어를 여러 프로세스로 나누는 이유를 세 가지 들어 보라.</summary><div class="a"><p>장애 격리(한 부분이 죽어도 나머지 유지), 작업마다 다른 주기, 여러 CPU 코어 활용, 언어·라이브러리 선택의 자유, 재사용과 분업, 여러 컴퓨터로 이루어진 구조 중 세 가지.</p></div></details>
+    <details class="q"><summary>640×480 컬러(RGB) 영상을 초당 30장 보내면 초당 데이터는 얼마인가?</summary><div class="a"><p>640 × 480 × 3 = 921,600바이트(약 0.9MB)이고, 30장이면 약 27.6MB/s입니다.</p></div></details>
+    <details class="q"><summary>"임무 시작" 명령과 카메라 영상 중, 빠짐없이 도착하는 것이 더 중요한 것은?</summary><div class="a"><p>"임무 시작" 명령입니다. 영상은 한 장이 빠지더라도 다음 장이 곧 오므로, 늦게라도 빠짐없이 받는 것보다 최신 장면을 빨리 받는 것이 중요합니다.</p></div></details>
+    <details class="q"><summary>프로세스끼리 서로의 메모리를 볼 수 없는데 어떻게 통신할 수 있나?</summary><div class="a"><p>모든 프로세스는 시스템 콜로 커널과 이야기할 수 있으므로, 커널이 데이터를 대신 전달하거나 같은 메모리를 두 프로세스에 연결해 줍니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 4 ===================== -->
+<section class="lec" id="c4" data-num="4" data-group="Ⅲ. 한 컴퓨터 안에서의 통신" data-title="파일, 파이프, 시그널">
+  <div class="manhead"><b>PIPE(2)</b><span>4장</span><span>Pipes and Signals</span></div>
+  <h2>파일, 파이프, 시그널<small>커널 버퍼 · 사용자 공간과 커널 공간 · os.pipe · subprocess · signal</small></h2>
+  <p class="lead">가장 기본적인 통신 방법들입니다. 시그널을 뺀 나머지는 모두 "보내는 쪽이 데이터를 커널에 넘기면 커널이 받는 쪽에 전해 주는" 구조입니다.</p>
+
+  <h3>가장 단순한 방법: 파일</h3>
+  <p>한 프로세스가 파일에 쓰고 다른 프로세스가 그 파일을 읽습니다. 리눅스 첫걸음 7장의 <code>&gt;</code> 재지정으로 결과를 저장해 두고 다른 명령으로 읽는 것도 이 방식입니다. 간단하지만 실시간 통신에는 맞지 않습니다.</p>
+  <ul>
+    <li>받는 쪽은 상대가 <strong>언제 새 내용을 썼는지 모릅니다</strong>. 계속 파일을 다시 열어 확인(polling)해야 합니다.</li>
+    <li>상대가 <strong>절반쯤 쓴 상태</strong>에서 읽으면 깨진 데이터를 받습니다.</li>
+    <li>저장 장치를 거치므로 메모리끼리 주고받는 것보다 느립니다.</li>
+  </ul>
+  <figure class="fig">
+    <div class="cv"><div class="comm">
+      <div class="end"><b>프로세스 A</b><span>기록하는 쪽</span></div>
+      <div class="step"><span class="no">① 보내기</span><code>f.write(data)</code><span class="ar"></span><small>저장 장치에 기록</small></div>
+      <div class="chan"><b>파일</b><span><code>/tmp/data.txt</code> (저장 장치)</span></div>
+      <div class="step"><span class="no">② 받기</span><code>f.read()</code><span class="ar"></span><small>파일을 다시 열어 읽음</small></div>
+      <div class="end"><b>프로세스 B</b><span>읽는 쪽</span></div>
+      <div class="foot">
+        <span><b>통로</b>저장 장치의 파일</span>
+        <span><b>복사</b>2번 + 저장 장치 왕복</span>
+        <span class="hot"><b>도착</b>알 수 없음. 계속 다시 열어 확인</span>
+        <span><b>상대</b>파일을 열 수 있는 누구나</span>
+      </div>
+    </div></div>
+    <figcaption>파일로 통신하기. 받는 쪽이 새 내용이 생겼는지 알 방법이 없다는 것이 가장 큰 약점입니다.</figcaption>
+  </figure>
+  <p>그래서 파일은 기록(로그), 설정, 실행이 끝난 뒤 결과를 넘겨줄 때 주로 씁니다.</p>
+  <div class="names"><span><code>polling</code><i>poll (여론 조사처럼 계속 물어보기)</i></span></div>
+
+  <h3>커널을 거치는 통신의 구조</h3>
+  <p>메모리는 일반 프로그램이 쓰는 <strong>사용자 공간</strong>과 커널만 쓰는 <strong>커널 공간</strong>으로 나뉩니다. 파이프와 소켓처럼 커널을 거치는 통신에서는 데이터가 다음과 같이 이동합니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 220" role="img" aria-label="프로세스 A의 데이터가 write로 커널 버퍼에 복사되고, read로 프로세스 B에 다시 복사됨">
+        <rect class="bx" x="40" y="24" width="160" height="60" rx="5"/><text class="tb c" x="120" y="44">프로세스 A</text><text class="ts c" x="120" y="66">보낼 데이터</text>
+        <rect class="bx" x="440" y="24" width="160" height="60" rx="5"/><text class="tb c" x="520" y="44">프로세스 B</text><text class="ts c" x="520" y="66">받은 데이터</text>
+        <path class="ln-x" d="M20 112 L620 112"/>
+        <text class="ts" x="24" y="104">사용자 공간</text>
+        <text class="ts" x="24" y="128">커널 공간</text>
+        <rect class="bx-a" x="240" y="146" width="160" height="50" rx="5"/><text class="tb c" x="320" y="163">커널 버퍼</text><text class="ts c" x="320" y="181">파이프 · 소켓 버퍼</text>
+        <path class="ln-a" d="M140 84 L250 142"/>
+        <path class="ln-a" d="M390 142 L500 88"/>
+        <text class="ts ta" x="100" y="166">① write(): 복사</text>
+        <text class="ts ta" x="440" y="166">② read(): 복사</text>
+      </svg>
+    </div>
+    <figcaption>보내는 쪽의 <code>write()</code>에서 한 번, 받는 쪽의 <code>read()</code>에서 한 번, 데이터가 모두 <strong>두 번 복사</strong>됩니다. 대신 커널이 순서와 기다림을 관리해 주므로 사용하기 쉽습니다.</figcaption>
+  </figure>
+  <div class="names"><span><code>user space</code><i>사용자 공간</i></span><span><code>kernel space</code><i>커널 공간</i></span><span><code>buffer</code><i>buffer (완충 저장소, 임시로 담아 두는 곳)</i></span></div>
+
+  <h3>파이프</h3>
+  <p>리눅스 첫걸음 7장의 <code>명령1 | 명령2</code>가 바로 파이프입니다. 커널 안에 만든 <strong>한 방향 버퍼</strong>이고, 한쪽 끝은 쓰기 전용, 다른 끝은 읽기 전용입니다. 이름이 없어서 <code>fork</code>로 끝을 물려받은 <strong>부모와 자식 사이</strong>에서만 쓸 수 있습니다.</p>
+  <figure class="fig">
+    <div class="cv"><div class="comm">
+      <div class="end"><b>부모 프로세스</b><span>쓰기 끝 <code>w</code></span></div>
+      <div class="step"><span class="no">① 보내기</span><code>os.write(w, data)</code><span class="ar"></span><small>커널 버퍼로 복사</small></div>
+      <div class="chan"><b>파이프</b><span>커널 버퍼 · 이름 없음 · 한 방향</span></div>
+      <div class="step"><span class="no">② 받기</span><code>os.read(r, n)</code><span class="ar"></span><small>버퍼에서 복사</small></div>
+      <div class="end"><b>자식 프로세스</b><span>읽기 끝 <code>r</code></span></div>
+      <div class="foot">
+        <span><b>통로</b>커널 안의 버퍼</span>
+        <span><b>복사</b>2번</span>
+        <span class="hot"><b>도착</b><code>read</code>가 데이터가 올 때까지 기다림</span>
+        <span><b>상대</b>fork로 끝을 물려받은 부모 ↔ 자식</span>
+      </div>
+    </div></div>
+    <figcaption>파이프. 파일과 달리 받는 쪽은 그냥 <code>read</code>를 부르고 기다리면 됩니다. 데이터가 들어오는 순간 깨어납니다.</figcaption>
+  </figure>
+  <pre data-label="pipe_demo.py">import os
+
+r, w = os.pipe()                <span class="c"># 파이프 생성: 읽기 끝 r, 쓰기 끝 w (둘 다 fd 번호)</span>
+pid = os.fork()                 <span class="c"># 자식은 r, w 를 그대로 물려받음</span>
+
+if pid == 0:                    <span class="c"># 자식: 읽는 쪽</span>
+    os.close(w)                 <span class="c"># 쓰지 않는 끝은 닫기</span>
+    data = os.read(r, 1024)     <span class="c"># 데이터가 올 때까지 기다림</span>
+    print(f"자식({os.getpid()})이 받음:", data.decode())
+    os.close(r)
+    os._exit(0)
+else:                           <span class="c"># 부모: 쓰는 쪽</span>
+    os.close(r)
+    os.write(w, "안녕, 자식 프로세스".encode())
+    os.close(w)                 <span class="c"># 다 썼다는 표시 (읽는 쪽에 EOF)</span>
+    os.waitpid(pid, 0)</pre>
+  <pre><span class="p">$ </span>python3 pipe_demo.py
+<span class="o">자식(7410)이 받음: 안녕, 자식 프로세스</span></pre>
+  <p>파이프의 성질은 다음과 같습니다.</p>
+  <ul>
+    <li><strong>한 방향</strong>입니다. 서로 주고받으려면 파이프를 두 개 만듭니다.</li>
+    <li><strong>바이트의 흐름</strong>입니다. 두 번 나눠 쓴 내용이 한 번에 읽힐 수도 있습니다. 메시지의 경계가 없습니다(7장에서 다시 다룸).</li>
+    <li>버퍼가 비어 있으면 <code>read</code>가, 가득 차 있으면(리눅스 기본 64KB) <code>write</code>가 <strong>기다립니다</strong>. 이렇게 함수가 끝나지 않고 기다리는 것을 <strong>블로킹</strong>이라고 합니다.</li>
+    <li>쓰는 끝이 모두 닫히면 <code>read</code>는 빈 값 <code>b''</code>를 돌려줍니다. 이것이 EOF(입력 끝)입니다.</li>
+  </ul>
+  <div class="names"><span><code>pipe</code><i>pipe (관)</i></span><span><code>fd</code><i><b>f</b>ile <b>d</b>escriptor</i></span><span><code>blocking</code><i>block (막다): 결과가 나올 때까지 멈춰 기다림</i></span><span><code>_exit</code><i>뒷정리 없이 즉시 종료 (fork 자식에서 사용)</i></span></div>
+  <div class="warn"><b class="t">쓰지 않는 끝은 반드시 닫는다</b>fork하면 부모와 자식이 양쪽 끝을 모두 갖게 됩니다. 자식이 쓰기 끝 <code>w</code>를 닫지 않으면, 부모가 다 쓰고 닫아도 "아직 누군가 쓸 수 있는 끝이 열려 있으므로" EOF가 오지 않아 자식이 영원히 기다립니다.</div>
+  <p>다른 <strong>프로그램</strong>과 파이프로 연결할 때는 <code>subprocess</code> 모듈을 씁니다. 셸의 <code>|</code>처럼 상대 프로그램의 표준 입력·출력을 파이프에 연결해 줍니다.</p>
+  <pre><span class="p">&gt;&gt;&gt; </span>import subprocess
+<span class="p">&gt;&gt;&gt; </span>r = subprocess.run(["sort"], input="banana\napple\n", capture_output=True, text=True)
+<span class="p">&gt;&gt;&gt; </span>r.stdout                          <span class="c"># sort 의 표준 출력을 파이프로 받아 온 것</span>
+<span class="o">'apple\nbanana\n'</span></pre>
+
+  <h3>시그널: 데이터 없는 알림</h3>
+  <p>리눅스 첫걸음 9장의 <code>kill</code>이 보내는 것이 시그널입니다. 시그널은 데이터가 아니라 "이런 일이 일어났다"는 <strong>번호 하나</strong>만 전달합니다. 시그널을 받은 프로세스는 하던 일을 잠깐 멈추고 미리 등록한 함수(<strong>핸들러</strong>)를 실행합니다. 핸들러를 등록하지 않았다면 대부분의 시그널은 프로세스를 종료시킵니다.</p>
+  <figure class="fig">
+    <div class="cv"><div class="comm">
+      <div class="end"><b>보내는 프로세스</b><span>또는 <code>kill</code> 명령, <kbd>Ctrl</kbd>+<kbd>C</kbd></span></div>
+      <div class="step"><span class="no">① 보내기</span><code>os.kill(pid, SIGUSR1)</code><span class="ar dash"></span><small>번호만 전달</small></div>
+      <div class="chan ghost"><b>시그널</b><span>번호 하나 · 데이터 없음</span></div>
+      <div class="step"><span class="no">② 받기</span><code>on_usr1(signum, frame)</code><span class="ar dash"></span><small>하던 일을 멈추고 핸들러 실행</small></div>
+      <div class="end"><b>받는 프로세스</b><span>PID로 지정</span></div>
+      <div class="foot">
+        <span class="hot"><b>통로</b>데이터를 담는 통로가 없음</span>
+        <span><b>복사</b>번호 하나뿐</span>
+        <span class="hot"><b>도착</b>기다리지 않아도 핸들러가 저절로 불림</span>
+        <span><b>상대</b>PID를 아는 같은 컴퓨터의 누구나</span>
+      </div>
+    </div></div>
+    <figcaption>시그널. 통로가 점선인 것은 데이터를 실어 나르지 않기 때문입니다. 대신 받는 쪽이 기다리고 있지 않아도 알림이 끼어듭니다.</figcaption>
+  </figure>
+  <pre data-label="signal_demo.py">import os, signal, time
+
+def on_stop(signum, frame):
+    print(f"\n{signal.Signals(signum).name} 받음 → 정리하고 종료")
+    <span class="c"># 여기서 모터 정지 명령 보내기, 파일 닫기 같은 뒷정리를 함</span>
+    raise SystemExit(0)
+
+def on_usr1(signum, frame):
+    print("SIGUSR1 받음: 사용자 정의 알림")
+
+signal.signal(signal.SIGINT, on_stop)     <span class="c"># Ctrl+C</span>
+signal.signal(signal.SIGTERM, on_stop)    <span class="c"># kill PID</span>
+signal.signal(signal.SIGUSR1, on_usr1)    <span class="c"># kill -USR1 PID</span>
+
+print("PID:", os.getpid())
+while True:
+    time.sleep(1)</pre>
+  <pre><span class="c"># 터미널 1</span>
+<span class="p">$ </span>python3 signal_demo.py
+<span class="o">PID: 8120</span>
+<span class="c"># 터미널 2</span>
+<span class="p">$ </span>kill -USR1 8120       <span class="c"># 터미널 1: SIGUSR1 받음: 사용자 정의 알림</span>
+<span class="p">$ </span>kill 8120             <span class="c"># 터미널 1: SIGTERM 받음 → 정리하고 종료</span></pre>
+  <p>Python 코드에서 다른 프로세스에 시그널을 보낼 때는 <code>os.kill(pid, signal.SIGUSR1)</code>처럼 씁니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>시그널</th><th>보내는 방법</th><th>핸들러로 잡을 수 있나</th><th>쓰임</th></tr></thead>
+    <tbody>
+      <tr><td><code>SIGINT</code> <span class="onm"><b>int</b>errupt</span></td><td><kbd>Ctrl</kbd>+<kbd>C</kbd></td><td>예</td><td>사용자가 중단 요청</td></tr>
+      <tr><td><code>SIGTERM</code> <span class="onm"><b>term</b>inate</span></td><td><code>kill PID</code></td><td>예</td><td>정상 종료 요청</td></tr>
+      <tr><td><code>SIGKILL</code> <span class="onm">kill</span></td><td><code>kill -9 PID</code></td><td><strong>아니요</strong></td><td>강제 종료. 뒷정리 불가</td></tr>
+      <tr><td><code>SIGUSR1</code>, <code>SIGUSR2</code> <span class="onm"><b>us</b>e<b>r</b></span></td><td><code>kill -USR1 PID</code></td><td>예</td><td>프로그램이 뜻을 정해서 쓰는 알림</td></tr>
+      <tr><td><code>SIGCHLD</code> <span class="onm"><b>ch</b>i<b>ld</b></span></td><td>커널이 자동으로</td><td>예</td><td>자식 프로세스가 끝났음을 부모에게 알림</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><b class="t">로봇에서 시그널이 중요한 이유</b>로봇 프로그램을 <kbd>Ctrl</kbd>+<kbd>C</kbd>로 끌 때, 모터에 마지막으로 보낸 속도 명령이 그대로 남아 있으면 로봇이 계속 달릴 수 있습니다. SIGINT 핸들러에서 정지 명령을 보낸 뒤 종료해야 안전합니다. ROS 2 프로그램도 SIGINT를 받아 종료 처리를 합니다. <code>kill -9</code>는 이런 뒷정리를 할 기회조차 주지 않으므로 마지막 수단으로만 씁니다.</div>
+  <div class="warn"><b class="t">시그널은 데이터 전달용이 아니다</b>같은 시그널이 짧은 시간에 여러 번 오면 하나로 합쳐질 수 있고, 번호 말고는 아무것도 실어 보낼 수 없습니다. "무슨 일이 있었다"는 알림에만 쓰고, 데이터는 다른 방법으로 주고받습니다.</div>
+  <div class="names"><span><code>signal</code><i>signal (신호)</i></span><span><code>handler</code><i>handler (처리하는 사람)</i></span></div>
+
+  <h3>한눈에 정리</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>방법</th><th>통신 상대</th><th>보내는 것</th><th>방향</th><th>주로 쓰는 곳</th></tr></thead>
+    <tbody>
+      <tr><td>파일</td><td>누구나</td><td>바이트</td><td>—</td><td>기록, 설정, 결과 저장</td></tr>
+      <tr><td>파이프</td><td>부모 ↔ 자식</td><td>바이트 흐름</td><td>한 방향</td><td>자식 프로세스·다른 프로그램의 출력 받기</td></tr>
+      <tr><td>시그널</td><td>같은 컴퓨터의 누구나</td><td>번호 하나</td><td>—</td><td>종료 요청, 이벤트 알림</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><b class="t">메시지 큐</b>바이트 흐름이 아니라 <strong>메시지 단위</strong>로 넣고 빼는 커널 통로(POSIX 메시지 큐)도 있습니다. Python 표준 라이브러리에는 직접 들어 있지 않고, 비슷한 용도로 <code>multiprocessing.Queue</code>를 많이 씁니다. 이것은 내부적으로 파이프 위에서 객체를 바이트로 바꿔(<code>pickle</code>) 주고받습니다.</div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>파이프로 데이터를 보낼 때 데이터는 몇 번 복사되나?</summary><div class="a"><p>두 번입니다. 보내는 프로세스에서 커널 버퍼로(<code>write</code>), 커널 버퍼에서 받는 프로세스로(<code>read</code>).</p></div></details>
+    <details class="q"><summary>부모가 파이프에 다 쓰고 닫았는데 자식의 <code>read</code>가 끝나지 않는다. 가장 흔한 원인은?</summary><div class="a"><p>자식이 물려받은 쓰기 끝을 닫지 않았기 때문입니다. 쓰기 끝이 하나라도 열려 있으면 EOF가 오지 않습니다.</p></div></details>
+    <details class="q"><summary><code>kill PID</code>와 <code>kill -9 PID</code>는 프로그램 입장에서 무엇이 다른가?</summary><div class="a"><p><code>kill PID</code>는 SIGTERM이라 핸들러로 받아 뒷정리를 하고 끝낼 수 있습니다. <code>kill -9</code>는 SIGKILL이라 잡을 수 없고 즉시 종료되어 뒷정리를 못 합니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 5 ===================== -->
+<section class="lec" id="c5" data-num="5" data-group="Ⅲ. 한 컴퓨터 안에서의 통신" data-title="공유 메모리">
+  <div class="manhead"><b>SHM_OPEN(3)</b><span>5장</span><span>Shared Memory</span></div>
+  <h2>공유 메모리<small>페이지 연결 · 복사 없는 통신 · /dev/shm · multiprocessing.shared_memory · numpy · close · unlink</small></h2>
+  <p class="lead">커널을 거치는 방식은 보낼 때마다 데이터를 복사합니다. <strong>공유 메모리</strong>는 아예 같은 메모리를 두 프로세스가 함께 보게 만들어 복사를 없앱니다. 한 컴퓨터 안에서 가장 빠른 IPC이고, 영상이나 포인트 클라우드처럼 큰 데이터를 주고받을 때 씁니다.</p>
+
+  <h3>원리: 같은 실제 메모리를 두 프로세스에 연결</h3>
+  <p>2장에서 본 것처럼 보통은 프로세스마다 서로 다른 실제 메모리가 연결됩니다. 공유 메모리는 커널이 <strong>실제 메모리의 한 구역을 두 프로세스의 페이지 테이블에 모두 연결</strong>하는 것입니다. 각 프로세스는 자기 주소로 읽고 쓰지만, 그 주소들이 결국 같은 바이트에 닿습니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 236" role="img" aria-label="프로세스 A와 B의 공유 구역이 실제 메모리의 같은 구역에 연결됨">
+        <text class="tb c" x="105" y="14">프로세스 A</text>
+        <text class="tb c" x="320" y="14">실제 메모리 (RAM)</text>
+        <text class="tb c" x="535" y="14">프로세스 B</text>
+        <rect class="bx" x="30" y="50" width="150" height="32" rx="4"/><text class="t c" x="105" y="66">코드</text>
+        <rect class="bx" x="30" y="100" width="150" height="32" rx="4"/><text class="t c" x="105" y="116">데이터 · 힙</text>
+        <rect class="bx-a" x="30" y="160" width="150" height="32" rx="4"/><text class="tb c" x="105" y="176">공유 구역</text>
+        <rect class="bx-a" x="460" y="50" width="150" height="32" rx="4"/><text class="tb c" x="535" y="66">공유 구역</text>
+        <rect class="bx" x="460" y="100" width="150" height="32" rx="4"/><text class="t c" x="535" y="116">코드</text>
+        <rect class="bx" x="460" y="160" width="150" height="32" rx="4"/><text class="t c" x="535" y="176">데이터 · 힙</text>
+        <rect class="bx-mute" x="255" y="30" width="130" height="28" rx="3"/><text class="ts c" x="320" y="44">A 전용</text>
+        <rect class="bx-mute" x="255" y="64" width="130" height="28" rx="3"/><text class="ts c" x="320" y="78">A 전용</text>
+        <rect class="bx-a" x="255" y="100" width="130" height="50" rx="4"/><text class="tb c" x="320" y="117">공유 메모리</text><text class="ts tm c" x="320" y="135">/dev/shm/robot_data</text>
+        <rect class="bx-mute" x="255" y="156" width="130" height="28" rx="3"/><text class="ts c" x="320" y="170">B 전용</text>
+        <rect class="bx-mute" x="255" y="190" width="130" height="28" rx="3"/><text class="ts c" x="320" y="204">B 전용</text>
+        <path class="ln" d="M180 66 L251 44"/>
+        <path class="ln" d="M180 116 L251 78"/>
+        <path class="ln-a" d="M180 176 L251 134"/>
+        <path class="ln-a" d="M460 66 L389 116"/>
+        <path class="ln" d="M460 116 L389 170"/>
+        <path class="ln" d="M460 176 L389 204"/>
+      </svg>
+    </div>
+    <figcaption>두 프로세스의 "공유 구역"이 실제 메모리의 같은 곳에 연결되어 있습니다. A가 그곳에 쓰는 순간 B도 바뀐 값을 봅니다. 나머지 영역은 여전히 서로 격리되어 있습니다.</figcaption>
+  </figure>
+  <p>커널은 처음에 연결할 때만 관여합니다. 그 뒤의 읽기와 쓰기는 평범한 메모리 접근이므로 <strong>시스템 콜도, 복사도 없습니다</strong>. 그래서 빠르지만, 4장의 방식에서 커널이 대신 해 주던 일(순서 정리, 기다림, 새 데이터 알림)을 모두 직접 해야 합니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>파이프 · 소켓 (커널 경유)</th><th>공유 메모리</th></tr></thead>
+    <tbody>
+      <tr><td>데이터 복사</td><td>보낼 때마다 2번</td><td>없음</td></tr>
+      <tr><td>시스템 콜</td><td>보내고 받을 때마다</td><td>처음 연결할 때만</td></tr>
+      <tr><td>큰 데이터</td><td>복사 비용이 커짐</td><td>크기와 상관없이 빠름</td></tr>
+      <tr><td>새 데이터 알림</td><td>자동 (<code>read</code>가 기다렸다가 받음)</td><td>직접 만들어야 함</td></tr>
+      <tr><td>동시 접근 정리</td><td>커널이 해 줌</td><td>직접 해야 함 (동시에 읽고 쓰지 않게 조심)</td></tr>
+      <tr><td>데이터 형식</td><td>바이트 흐름</td><td>그냥 바이트 덩어리. 어디에 무엇을 둘지 직접 정함</td></tr>
+      <tr><td>범위</td><td>소켓은 다른 컴퓨터까지</td><td>같은 컴퓨터만</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Python으로 공유 메모리 만들기</h3>
+  <p>Python 표준 라이브러리에 <code>multiprocessing.shared_memory</code>가 있습니다. 리눅스에서는 POSIX 공유 메모리(<code>shm_open</code>)로 만들어지고, <code>/dev/shm</code> 아래에 이름을 가진 파일로 보입니다. 이름으로 찾아 연결하므로 관계없는 프로세스끼리도 쓸 수 있습니다.</p>
+  <figure class="fig">
+    <div class="cv"><div class="comm">
+      <div class="end"><b>생산자</b><span><code>shm_writer.py</code></span></div>
+      <div class="step"><span class="no">① 보내기</span><code>shm.buf[1:n] = data</code><span class="ar"></span><small>메모리에 직접 씀</small></div>
+      <div class="chan"><b>공유 메모리</b><span><code>/dev/shm/robot_data</code> (RAM의 같은 구역)</span></div>
+      <div class="step"><span class="no">② 받기</span><code>bytes(shm.buf[1:n])</code><span class="ar"></span><small>메모리를 직접 읽음</small></div>
+      <div class="end"><b>소비자</b><span><code>shm_reader.py</code></span></div>
+      <div class="foot">
+        <span class="hot"><b>통로</b>두 프로세스가 함께 보는 메모리</span>
+        <span class="hot"><b>복사</b>없음</span>
+        <span class="hot"><b>도착</b>알려 주지 않음 → 직접 확인해야 함</span>
+        <span><b>상대</b>이름을 아는 같은 컴퓨터의 누구나</span>
+      </div>
+    </div></div>
+    <figcaption>공유 메모리. 복사가 사라져 가장 빠르지만, 파이프가 해 주던 "도착 알림"도 함께 사라집니다.</figcaption>
+  </figure>
+  <pre data-label="shm_writer.py">import time
+from multiprocessing import shared_memory
+
+<span class="c"># robot_data 라는 이름의 100바이트 공유 메모리를 새로 만듦</span>
+shm = shared_memory.SharedMemory(name="robot_data", create=True, size=100)
+print("만듦:", shm.name, shm.size, "bytes")
+
+try:
+    for i in range(30):
+        msg = f"count={i}".encode()
+        shm.buf[0] = len(msg)                 <span class="c"># 0번 바이트: 메시지 길이</span>
+        shm.buf[1:1 + len(msg)] = msg         <span class="c"># 1번 바이트부터: 메시지 내용</span>
+        time.sleep(1)
+finally:
+    shm.close()     <span class="c"># 이 프로세스에서 연결 끊기</span>
+    shm.unlink()    <span class="c"># 공유 메모리 자체를 삭제 (만든 쪽이 한 번만)</span></pre>
+  <pre data-label="shm_reader.py">import time
+from multiprocessing import shared_memory, resource_tracker
+
+shm = shared_memory.SharedMemory(name="robot_data")      <span class="c"># 이미 있는 것에 연결</span>
+resource_tracker.unregister(shm._name, "shared_memory")  <span class="c"># 읽는 쪽이 끝날 때 공유 메모리가 지워지지 않게</span>
+
+for _ in range(10):
+    n = shm.buf[0]
+    print("읽음:", bytes(shm.buf[1:1 + n]).decode())
+    time.sleep(1)
+
+shm.close()          <span class="c"># 연결만 끊음. 삭제(unlink)는 만든 쪽이 함</span></pre>
+  <pre><span class="c"># 터미널 1</span>
+<span class="p">$ </span>python3 shm_writer.py
+<span class="o">만듦: robot_data 100 bytes</span>
+<span class="c"># 터미널 2</span>
+<span class="p">$ </span>ls -l /dev/shm
+<span class="o">-rw------- 1 student student 100 Oct  5 11:20 robot_data</span>
+<span class="p">$ </span>python3 shm_reader.py
+<span class="o">읽음: count=4
+읽음: count=5
+읽음: count=6</span></pre>
+  <p><code>shm.buf</code>는 공유 메모리를 바이트 배열처럼 다루게 해 주는 창(<code>memoryview</code>)입니다. 위 예제는 "0번 바이트에 길이, 그 뒤에 내용"이라는 규칙을 <strong>두 프로그램이 똑같이 알고 있기 때문에</strong> 동작합니다. 공유 메모리는 그냥 바이트 덩어리라서, 이런 배치 규칙을 정하는 것도 프로그래머의 일입니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>함수</th><th>하는 일</th><th>누가</th></tr></thead>
+    <tbody>
+      <tr><td><code>SharedMemory(name, create=True, size=n)</code></td><td>새로 만들기. 같은 이름이 있으면 <code>FileExistsError</code></td><td>만드는 쪽</td></tr>
+      <tr><td><code>SharedMemory(name)</code></td><td>이미 있는 것에 연결. 없으면 <code>FileNotFoundError</code></td><td>쓰는 쪽 모두</td></tr>
+      <tr><td><code>.buf</code></td><td>공유 메모리 내용 (바이트 단위로 읽고 쓰기)</td><td>쓰는 쪽 모두</td></tr>
+      <tr><td><code>.close()</code></td><td>이 프로세스의 주소 공간에서 연결만 끊음</td><td>쓰는 쪽 모두</td></tr>
+      <tr><td><code>.unlink()</code></td><td>이름을 지움. 모두가 <code>close</code>하면 메모리가 해제됨</td><td>만든 쪽 한 번</td></tr>
+    </tbody>
+  </table></div>
+  <div class="names"><span><code>shm</code><i><b>sh</b>ared <b>m</b>emory</i></span><span><code>/dev/shm</code><i>메모리에만 존재하는 파일 시스템</i></span><span><code>buf</code><i><b>buf</b>fer</i></span><span><code>unlink</code><i>unlink (이름 연결을 끊다 = 삭제)</i></span><span><code>POSIX</code><i>유닉스 계열 운영체제의 표준 규격</i></span></div>
+ <div class="note"><b class="t">정리하지 못한 공유 메모리</b>만든 프로그램이 <code>kill -9</code>처럼 <code>unlink</code> 없이 끝나면 <code>/dev/shm</code>에 그대로 남아 메모리를 차지하고, 다시 <code>create=True</code>로 만들 때 <code>FileExistsError</code>가 납니다. 이때는 <code>rm /dev/shm/robot_data</code>로 지우면 됩니다. 재부팅해도 사라집니다.</div>
+
+  <h3>numpy 배열을 공유 메모리에 두기</h3>
+  <p>실제로 공유하는 데이터는 대부분 영상이나 포인트 클라우드 같은 숫자 배열입니다. numpy 배열을 만들 때 저장 공간으로 공유 메모리를 지정하면, 배열에 값을 쓰는 순간 다른 프로세스에서도 그 값이 보입니다.</p>
+  <pre data-label="만드는 쪽">import numpy as np
+from multiprocessing import shared_memory
+
+shape, dtype = (480, 640, 3), np.uint8                  <span class="c"># 640x480 컬러 영상 한 장</span>
+size = int(np.prod(shape)) * np.dtype(dtype).itemsize   <span class="c"># 921,600 바이트</span>
+
+shm = shared_memory.SharedMemory(name="camera", create=True, size=size)
+img = np.ndarray(shape, dtype=dtype, buffer=shm.buf)    <span class="c"># 공유 메모리 위에 만든 배열</span>
+
+img[:] = 0                          <span class="c"># 전체를 검은색으로</span>
+img[100:200, 100:200] = (255, 0, 0) <span class="c"># 일부를 빨간색으로 → 바로 상대에게 보임</span></pre>
+  <pre data-label="연결하는 쪽">shm = shared_memory.SharedMemory(name="camera")
+img = np.ndarray((480, 640, 3), dtype=np.uint8, buffer=shm.buf)   <span class="c"># 같은 모양과 자료형으로</span>
+frame = img.copy()                  <span class="c"># 지금 내용을 내 메모리로 복사해 두고 처리</span></pre>
+  <div class="note"><b class="t">모양과 자료형은 공유되지 않는다</b>공유되는 것은 921,600개의 바이트뿐입니다. 그것을 "480×640×3 크기의 uint8 배열"로 해석하는 것은 각 프로그램이 정합니다. 한쪽이 <code>(640, 480, 3)</code>으로 잘못 해석하면 오류 없이 엉뚱한 영상이 나옵니다. 이런 "형식의 약속"을 일일이 맞추는 문제는 9장에서 다시 나옵니다.</div>
+  <div class="warn"><b class="t">close 전에 배열부터 지우기</b>공유 메모리 위에 만든 numpy 배열이 남아 있는 상태에서 <code>shm.close()</code>를 부르면 <code>BufferError: cannot close exported pointers exist</code>가 납니다. <code>del img</code>로 배열을 먼저 지운 뒤 <code>close</code>합니다.</div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>공유 메모리가 파이프보다 빠른 이유는?</summary><div class="a"><p>같은 실제 메모리를 두 프로세스에 연결해 두었기 때문에, 데이터를 주고받을 때 커널로 복사하거나 시스템 콜을 부를 필요가 없습니다.</p></div></details>
+    <details class="q"><summary>Python으로 만든 공유 메모리는 리눅스의 어디에서 확인할 수 있나?</summary><div class="a"><p><code>/dev/shm</code> 아래에 지정한 이름의 파일로 보입니다.</p></div></details>
+    <details class="q"><summary><code>close()</code>와 <code>unlink()</code>의 차이는?</summary><div class="a"><p><code>close()</code>는 자기 프로세스에서 연결만 끊고, <code>unlink()</code>는 공유 메모리의 이름을 지워 모두가 연결을 끊으면 메모리가 해제되게 합니다. <code>unlink</code>는 만든 쪽이 한 번만 합니다.</p></div></details>
+    <details class="q"><summary>만드는 프로그램을 <code>kill -9</code>로 끈 뒤 다시 실행했더니 <code>FileExistsError</code>가 난다. 이유와 해결 방법은?</summary><div class="a"><p>강제 종료되어 <code>unlink</code>를 하지 못해 <code>/dev/shm</code>에 이전 공유 메모리가 남아 있기 때문입니다. <code>rm /dev/shm/이름</code>으로 지우고 다시 실행합니다.</p></div></details>
+    <details class="q"><summary>공유 메모리로 numpy 배열을 공유할 때 두 프로그램이 반드시 맞춰야 하는 것은?</summary><div class="a"><p>공유 메모리 이름, 배열의 모양(shape), 자료형(dtype)입니다. 공유되는 것은 바이트뿐이므로 해석 방법을 양쪽이 똑같이 알아야 합니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 6 ===================== -->
+<section class="lec" id="c6" data-num="6" data-group="Ⅳ. 컴퓨터 사이의 통신" data-title="네트워크 기초">
+  <div class="manhead"><b>IP(7)</b><span>6장</span><span>Networking Basics</span></div>
+  <h2>네트워크 기초<small>IP 주소 · 포트 · 인터페이스 · localhost · 패킷 · 계층 · TCP · UDP · 소켓 · ss</small></h2>
+  <p class="lead">공유 메모리는 같은 RAM을 볼 수 있을 때만 쓸 수 있습니다. 로봇의 메인 PC와 원격 모니터링 노트북처럼 컴퓨터가 다르면, 데이터를 네트워크로 보내야 합니다. 그 전에 네트워크에서 상대를 어떻게 찾고 데이터가 어떻게 가는지 알아봅니다.</p>
+
+  <h3>상대의 주소: IP 주소와 포트</h3>
+  <p><strong>IP 주소</strong>는 네트워크에서 컴퓨터를 찾는 주소이고, <strong>포트</strong>는 그 컴퓨터 안에서 어느 프로세스에게 갈지 정하는 번호(0~65535)입니다. 택배에 비유하면 IP 주소는 건물 주소, 포트는 호수입니다. 그래서 통신 상대는 항상 <strong>(IP 주소, 포트)</strong> 한 쌍으로 나타냅니다.</p>
+
+  <h3>IP 주소는 컴퓨터가 아니라 "연결"마다 붙는다</h3>
+  <p>"컴퓨터 한 대에 IP 하나"라고 생각하기 쉽지만, IP 주소는 <strong>네트워크 연결(인터페이스)마다</strong> 하나씩 붙습니다. 와이파이, 유선 랜선, 가상 연결이 각각 따로 주소를 가집니다. 그래서 컴퓨터 한 대가 IP 주소를 여러 개 갖는 것은 자연스러운 일입니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 284" role="img" aria-label="로봇 PC 한 대에 lo, 와이파이, 유선 세 개의 연결이 있고 각각 다른 IP 주소로 다른 기기와 이어짐">
+        <!-- 로봇 PC -->
+        <rect class="bx" x="220" y="10" width="200" height="246" rx="8"/>
+        <rect class="bx" x="262" y="20" width="16" height="22" rx="2"/><circle cx="270" cy="36" r="2" style="fill:var(--accent)"/><path d="M265 26 H275 M265 30 H275" style="stroke:var(--ink-soft);stroke-width:1.2"/>
+        <text class="tb" x="286" y="36">로봇 PC 한 대</text>
+
+        <rect class="bx-a" x="232" y="52" width="176" height="52" rx="5"/>
+        <path d="M264.7 73 A10 10 0 1 1 255 68.05" style="fill:none;stroke:var(--accent);stroke-width:2.2;stroke-linecap:round"/><path d="M261.5 68 L254.5 63.5 L254.5 72.5 Z" style="fill:var(--accent)"/>
+        <text class="tb tm c" x="344" y="74">lo</text><text class="ts tm c" x="344" y="92">127.0.0.1</text>
+
+        <rect class="bx-a" x="232" y="118" width="176" height="52" rx="5"/>
+        <path d="M243 138 Q256 125 269 138 M247.5 144 Q256 135.5 264.5 144 M252 150 Q256 146 260 150" style="fill:none;stroke:var(--accent);stroke-width:2.2;stroke-linecap:round"/><circle cx="256" cy="155" r="2.4" style="fill:var(--accent)"/>
+        <text class="tb tm c" x="344" y="140">wlp2s0</text><text class="ts tm c" x="344" y="158">192.168.0.15</text>
+
+        <rect class="bx-a" x="232" y="184" width="176" height="52" rx="5"/>
+        <path d="M256 199 V205" style="stroke:var(--ink-soft);stroke-width:3"/>
+        <rect x="246" y="205" width="20" height="16" rx="2" style="fill:var(--sheet);stroke:var(--accent);stroke-width:2"/>
+        <path d="M250 209 V213 M254 209 V213 M258 209 V213 M262 209 V213" style="stroke:var(--accent);stroke-width:1.5"/>
+        <text class="tb tm c" x="344" y="206">enp3s0</text><text class="ts tm c" x="344" y="224">10.0.0.5</text>
+
+        <!-- lo: 자기 자신에게 -->
+        <path class="ln" d="M408 70 C 456 60, 456 102, 412 92"/>
+        <text class="ts ta" x="462" y="70">가상 연결</text>
+        <text class="ts" x="462" y="88">밖으로 나가지 않고</text>
+        <text class="ts" x="462" y="104">자기 자신에게 돌아옴</text>
+
+        <!-- 노트북 -->
+        <rect class="bx" x="58" y="18" width="74" height="48" rx="3"/>
+        <rect x="64" y="24" width="62" height="36" rx="1" style="fill:var(--paper)"/>
+        <path class="bx" d="M44 70 H146 L154 80 H36 Z"/>
+        <text class="tb c" x="95" y="100">노트북</text><text class="ts tm c" x="95" y="116">192.168.0.20</text>
+
+        <!-- 공유기 -->
+        <path d="M68 170 L62 146 M132 170 L138 146" style="stroke:var(--ink-soft);stroke-width:3;stroke-linecap:round"/>
+        <rect class="bx" x="50" y="170" width="100" height="26" rx="6"/>
+        <circle cx="70" cy="183" r="3" style="fill:var(--ok)"/><circle cx="82" cy="183" r="3" style="fill:var(--ok)"/><circle cx="94" cy="183" r="3" style="fill:var(--accent)"/>
+        <text class="tb c" x="100" y="216">공유기</text><text class="ts tm c" x="100" y="232">192.168.0.x 네트워크</text>
+
+        <!-- 무선 연결 -->
+        <path d="M100 124 V140" style="stroke:var(--accent);stroke-width:2;stroke-dasharray:3 4"/>
+        <path d="M150 178 C 190 178, 196 144, 228 144" style="fill:none;stroke:var(--accent);stroke-width:2;stroke-dasharray:3 4"/>
+        <text class="ts ta" x="160" y="152">와이파이</text>
+
+        <!-- 유선 연결 -->
+        <path d="M408 214 C 440 214, 450 222, 482 222" style="fill:none;stroke:var(--ink-soft);stroke-width:4;stroke-linecap:round"/>
+        <text class="ts" x="420" y="246">랜선</text>
+
+        <!-- 모터 제어 보드 -->
+        <rect class="bx" x="482" y="196" width="128" height="52" rx="4"/>
+        <rect x="482" y="212" width="10" height="20" style="fill:var(--ink-soft)"/>
+        <rect class="bx-a" x="526" y="208" width="40" height="28" rx="2"/>
+        <path d="M532 204 V208 M540 204 V208 M548 204 V208 M556 204 V208 M532 236 V240 M540 236 V240 M548 236 V240 M556 236 V240" style="stroke:var(--accent);stroke-width:2"/>
+        <circle cx="592" cy="210" r="3" style="fill:var(--ok)"/>
+        <text class="tb c" x="546" y="266">모터 제어 보드</text><text class="ts tm c" x="546" y="280">10.0.0.7</text>
+      </svg>
+    </div>
+    <figcaption>로봇 PC 한 대에 주소가 셋입니다. 노트북은 같은 와이파이 네트워크의 <code>192.168.0.15</code>로, 모터 보드는 랜선으로 연결된 <code>10.0.0.5</code>로 같은 컴퓨터에 닿습니다. 상대가 어느 네트워크에 있느냐에 따라 써야 할 주소가 달라집니다.</figcaption>
+  </figure>
+  <pre><span class="p">$ </span>ip -br addr                    <span class="c"># 연결마다 주소를 한 줄씩 (-br: 짧게)</span>
+<span class="o">lo               UNKNOWN        127.0.0.1/8
+enp3s0           UP             10.0.0.5/24
+wlp2s0           UP             192.168.0.15/24</span></pre>
+  <ul>
+    <li><strong>무엇이 다른가</strong>: 각 주소는 <strong>서로 다른 네트워크</strong>에 속합니다. 같은 네트워크에 있는 상대만 그 주소로 바로 닿을 수 있습니다. 와이파이에 붙은 노트북이 <code>10.0.0.5</code>로 보내면 길을 찾지 못합니다.</li>
+    <li><strong>같은 네트워크 알아보기</strong>: 주소 뒤의 <code>/24</code>는 "앞의 세 덩어리(24비트)가 네트워크 이름"이라는 뜻입니다. <code>192.168.0.15/24</code>와 <code>192.168.0.20</code>은 앞 세 덩어리가 같으므로 같은 네트워크입니다.</li>
+    <li><strong><code>127.0.0.1</code></strong>: 어떤 장치에도 연결되지 않은 가상 연결(<code>lo</code>)의 주소입니다. 보낸 데이터가 밖으로 나가지 않고 바로 자기에게 돌아오므로, 같은 컴퓨터 안의 프로세스끼리 소켓을 연습할 때 씁니다.</li>
+  </ul>
+  <div class="names"><span><code>lo</code><i><b>lo</b>opback (되돌아오는 고리)</i></span><span><code>wl</code><i><b>w</b>ireless <b>l</b>an (와이파이)</i></span><span><code>en</code><i><b>e</b>ther<b>n</b>et (유선 랜)</i></span><span><code>-br</code><i><b>br</b>ief (짧게)</i></span><span><code>/24</code><i>앞 24비트가 같으면 같은 네트워크</i></span></div>
+  <div class="tbl"><table>
+    <thead><tr><th>주소</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td><code>127.0.0.1</code> (<code>localhost</code>)</td><td>자기 자신. 같은 컴퓨터 안의 프로세스끼리 네트워크 방식으로 통신할 때 사용</td></tr>
+      <tr><td><code>192.168.x.x</code>, <code>10.x.x.x</code></td><td>공유기 안쪽의 사설 네트워크 주소. 로봇과 노트북을 같은 공유기에 연결하면 보통 이 주소를 받음</td></tr>
+      <tr><td><code>0.0.0.0</code></td><td>서버가 기다릴 때 쓰면 "이 컴퓨터의 모든 네트워크 연결에서 받기"</td></tr>
+      <tr><td>포트 0~1023</td><td>잘 알려진 서비스용 (22 SSH, 80 HTTP). 이 번호로 기다리려면 관리자 권한 필요</td></tr>
+      <tr><td>포트 1024~65535</td><td>일반 프로그램이 자유롭게 사용</td></tr>
+    </tbody>
+  </table></div>
+  <pre><span class="p">$ </span>hostname -I                    <span class="c"># 내 IP 주소 (리눅스 첫걸음 12장의 ip addr 로도 확인)</span>
+<span class="o">192.168.0.15</span>
+<span class="p">$ </span>ping -c 2 192.168.0.20         <span class="c"># 상대 컴퓨터에 닿는지 확인</span>
+<span class="o">64 bytes from 192.168.0.20: icmp_seq=1 ttl=64 time=3.12 ms
+64 bytes from 192.168.0.20: icmp_seq=2 ttl=64 time=2.87 ms</span>
+<span class="p">$ </span>ss -tlnp                       <span class="c"># 지금 접속을 기다리고 있는 TCP 포트 목록</span>
+<span class="o">State   Recv-Q  Send-Q  Local Address:Port  Peer Address:Port  Process
+LISTEN  0       128           0.0.0.0:22         0.0.0.0:*</span></pre>
+  <div class="names"><span><code>IP</code><i><b>I</b>nternet <b>P</b>rotocol</i></span><span><code>port</code><i>port (항구, 드나드는 곳)</i></span><span><code>ss</code><i><b>s</b>ocket <b>s</b>tatistics</i></span><span><code>-t -u -l -n -p</code><i><b>t</b>cp · <b>u</b>dp · <b>l</b>istening · <b>n</b>umeric · <b>p</b>rocess</i></span></div>
+
+  <h3>컴퓨터끼리 데이터가 오가는 과정</h3>
+  <p>노트북의 프로그램이 로봇 PC의 명령 수신 프로그램(포트 5000)에 <code>"forward 0.5"</code>를 보내고 <code>"OK"</code>를 돌려받는 과정입니다. 보내는 데이터에는 <strong>받는 곳</strong>과 <strong>보내는 곳</strong>의 (IP, 포트)가 함께 붙어서 갑니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 266" role="img" aria-label="노트북에서 공유기를 거쳐 로봇 PC로 요청 패킷이 가고, 주소를 맞바꾼 답장 패킷이 돌아옴">
+        <rect class="bx" x="20" y="30" width="160" height="70" rx="5"/><text class="tb c" x="100" y="50">노트북</text><text class="ts tm c" x="100" y="68">192.168.0.20</text><text class="ts c" x="100" y="86">프로그램 · 포트 51234</text>
+        <rect class="bx" x="250" y="40" width="140" height="50" rx="5"/><text class="tb c" x="320" y="58">공유기</text><text class="ts c" x="320" y="76">받는 곳 IP 보고 전달</text>
+        <rect class="bx" x="460" y="30" width="160" height="70" rx="5"/><text class="tb c" x="540" y="50">로봇 PC</text><text class="ts tm c" x="540" y="68">192.168.0.15</text><text class="ts c" x="540" y="86">포트 5000에서 대기</text>
+        <path class="ln-a" d="M180 55 L246 55"/><path class="ln-a" d="M390 55 L456 55"/>
+        <text class="ts ta c" x="215" y="47">요청</text><text class="ts ta c" x="425" y="47">요청</text>
+        <path class="ln" d="M460 80 L394 80"/><path class="ln" d="M250 80 L184 80"/>
+        <text class="ts c" x="215" y="96">답장</text><text class="ts c" x="425" y="96">답장</text>
+
+        <text class="tb" x="20" y="138">요청 패킷</text>
+        <rect class="bx-a" x="20" y="148" width="200" height="40"/><text class="ts c" x="120" y="161">받는 곳</text><text class="ts tm c" x="120" y="178">192.168.0.15 : 5000</text>
+        <rect class="bx" x="220" y="148" width="200" height="40"/><text class="ts c" x="320" y="161">보내는 곳</text><text class="ts tm c" x="320" y="178">192.168.0.20 : 51234</text>
+        <rect class="bx-mute" x="420" y="148" width="200" height="40"/><text class="ts c" x="520" y="161">데이터</text><text class="ts tm c" x="520" y="178">"forward 0.5"</text>
+
+        <text class="tb" x="20" y="214">답장 패킷</text>
+        <rect class="bx-a" x="20" y="224" width="200" height="40"/><text class="ts c" x="120" y="237">받는 곳</text><text class="ts tm c" x="120" y="254">192.168.0.20 : 51234</text>
+        <rect class="bx" x="220" y="224" width="200" height="40"/><text class="ts c" x="320" y="237">보내는 곳</text><text class="ts tm c" x="320" y="254">192.168.0.15 : 5000</text>
+        <rect class="bx-mute" x="420" y="224" width="200" height="40"/><text class="ts c" x="520" y="237">데이터</text><text class="ts tm c" x="520" y="254">"OK"</text>
+      </svg>
+    </div>
+    <figcaption>공유기는 <strong>받는 곳 IP</strong>를 보고 어느 컴퓨터로 보낼지 정하고, 로봇 PC는 <strong>받는 곳 포트</strong>를 보고 어느 프로그램에게 넘길지 정합니다. 답장은 두 주소를 맞바꿔서 보냅니다. 보내는 쪽 포트(51234)는 운영체제가 빈 번호를 자동으로 붙입니다.</figcaption>
+  </figure>
+
+  <h3>데이터는 패킷으로 나뉘어 간다</h3>
+  <p>네트워크에서는 큰 데이터를 한 번에 보내지 않고 <strong>패킷</strong>이라는 작은 조각(보통 최대 1500바이트 정도)으로 나눠 보냅니다. 각 패킷은 가는 도중에 <strong>사라지거나, 순서가 바뀌거나, 늦게 도착할 수</strong> 있습니다. 와이파이처럼 불안정한 연결에서는 특히 자주 생깁니다. 이 문제를 어떻게 다루느냐에 따라 TCP와 UDP로 나뉩니다.</p>
+  <p>네트워크 통신은 여러 <strong>계층</strong>이 역할을 나눠 맡습니다. 프로그램은 맨 위 계층만 신경 쓰면 됩니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>계층</th><th>하는 일</th><th>예</th></tr></thead>
+    <tbody>
+      <tr><td>응용</td><td>무엇을 보낼지 (내 프로그램)</td><td>속도 명령, 영상, 웹 페이지</td></tr>
+      <tr><td>전송</td><td>어느 프로세스(포트)에게, 얼마나 믿을 수 있게</td><td><strong>TCP, UDP</strong></td></tr>
+      <tr><td>네트워크</td><td>어느 컴퓨터(IP 주소)로, 어떤 길로</td><td>IP</td></tr>
+      <tr><td>링크</td><td>바로 옆 장비까지 실제 신호로</td><td>이더넷(유선), 와이파이</td></tr>
+    </tbody>
+  </table></div>
+  <div class="names"><span><code>packet</code><i>packet (작은 꾸러미)</i></span><span><code>MTU</code><i><b>M</b>aximum <b>T</b>ransmission <b>U</b>nit (한 번에 보낼 수 있는 최대 크기)</i></span></div>
+
+  <h3>TCP와 UDP</h3>
+  <p>같은 데이터 세 조각을 보내는 도중에 2번 조각이 사라졌다고 해 봅시다. 두 방식은 이렇게 다르게 반응합니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 462" role="img" aria-label="TCP는 연결을 맺고 데이터 2가 사라지면 다시 보내 1, 2, 3을 모두 순서대로 받고, UDP는 연결 없이 보내서 1과 3만 받음">
+        <rect x="8" y="78" width="304" height="104" rx="6" style="fill:var(--sheet)"/><rect x="328" y="78" width="304" height="104" rx="6" style="fill:var(--sheet)"/>
+        <rect x="8" y="190" width="304" height="104" rx="6" style="fill:var(--sheet)"/><rect x="328" y="190" width="304" height="104" rx="6" style="fill:var(--sheet)"/>
+        <rect x="8" y="302" width="304" height="104" rx="6" style="fill:var(--sheet)"/><rect x="328" y="302" width="304" height="104" rx="6" style="fill:var(--sheet)"/>
+        <path class="ln-x" d="M320 6 V456"/>
+        <text class="tb c" x="160" y="18">TCP</text><text class="ts c" x="160" y="36">전화처럼: 연결하고, 확인하고, 다시 보냄</text>
+        <text class="tb c" x="480" y="18">UDP</text><text class="ts c" x="480" y="36">편지처럼: 주소만 적어 그냥 보냄</text>
+        <text class="ts tb c" x="50" y="62">보내는 쪽</text><text class="ts tb c" x="270" y="62">받는 쪽</text><text class="ts tb c" x="370" y="62">보내는 쪽</text><text class="ts tb c" x="590" y="62">받는 쪽</text>
+        <path class="ln-x" d="M50 70 V410 M270 70 V410 M370 70 V410 M590 70 V410"/>
+        <text class="ts ta c" style="font-weight:700" x="160" y="94">① 연결 맺기</text><text class="ts ta c" style="font-weight:700" x="160" y="206">② 데이터 보내기</text><text class="ts ta c" style="font-weight:700" x="160" y="318">③ 빠진 것 다시 보내기</text>
+        <text class="ts ta c" style="font-weight:700" x="480" y="206">② 데이터 보내기</text>
+        <text class="t c" x="480" y="130">연결 과정 없이</text><text class="t c" x="480" y="150">바로 보냄</text>
+        <text class="t c" x="480" y="344">확인도, 다시 보내기도</text><text class="t c" x="480" y="364">없음</text>
+        <path class="ln" d="M50 118 H266"/><path class="ln" d="M270 144 H54"/><path class="ln" d="M50 170 H266"/>
+        <path class="ln-a" d="M50 230 H266"/><path class="ln-x" style="stroke:var(--warn)" d="M50 256 H150"/><path class="ln-a" d="M50 282 H266"/>
+        <path class="ln" d="M270 342 H54"/><path class="ln-a" d="M50 368 H266"/><path class="ln" d="M270 394 H54"/>
+        <path class="ln-a" d="M370 230 H586"/><path class="ln-x" style="stroke:var(--warn)" d="M370 256 H470"/><path class="ln-a" d="M370 282 H586"/>
+        <rect class="bx" x="122" y="108" width="76" height="20" rx="10"/><text class="ts c " x="160" y="118">연결할까?</text>
+        <rect class="bx" x="135" y="134" width="50" height="20" rx="10"/><text class="ts c " x="160" y="144">좋아</text>
+        <rect class="bx" x="135" y="160" width="50" height="20" rx="10"/><text class="ts c " x="160" y="170">확인</text>
+        <rect class="bx-a" x="125" y="220" width="70" height="20" rx="10"/><text class="ts c ta" x="160" y="230">데이터 1</text>
+        <rect class="bx-mute" x="65" y="246" width="70" height="20" rx="10"/><text class="ts c " x="100" y="256">데이터 2</text>
+        <text class="tb tw c" x="162" y="256">✗</text><text class="ts tw" x="176" y="260">사라짐</text>
+        <rect class="bx-a" x="125" y="272" width="70" height="20" rx="10"/><text class="ts c ta" x="160" y="282">데이터 3</text>
+        <rect class="bx" x="108" y="332" width="104" height="20" rx="10"/><text class="ts c " x="160" y="342">2번이 안 왔어</text>
+        <rect class="bx-a" x="106" y="358" width="108" height="20" rx="10"/><text class="ts c ta" x="160" y="368">데이터 2 (다시)</text>
+        <rect class="bx" x="121" y="384" width="78" height="20" rx="10"/><text class="ts c " x="160" y="394">다 받았어</text>
+        <rect class="bx-a" x="445" y="220" width="70" height="20" rx="10"/><text class="ts c ta" x="480" y="230">데이터 1</text>
+        <rect class="bx-mute" x="385" y="246" width="70" height="20" rx="10"/><text class="ts c " x="420" y="256">데이터 2</text>
+        <text class="tb tw c" x="482" y="256">✗</text><text class="ts tw" x="496" y="260">사라짐</text>
+        <rect class="bx-a" x="445" y="272" width="70" height="20" rx="10"/><text class="ts c ta" x="480" y="282">데이터 3</text>
+        <rect class="bx-ok" x="40" y="420" width="240" height="34" rx="5"/><text class="t c" x="160" y="437">받는 순서: 1 → 2 → 3</text>
+        <rect class="bx-mute" x="360" y="420" width="240" height="34" rx="5"/><text class="t c" x="480" y="437">받는 순서: 1 → 3 (2는 없음)</text>
+        </svg>
+    </div>
+    <figcaption>TCP는 먼저 연결을 맺고, 받는 쪽이 "어디까지 받았는지" 알려 주므로 빠진 조각을 다시 보내고 순서도 맞춰 줍니다. 그 대신 확인을 주고받고 기다리는 시간이 생깁니다. UDP는 확인 없이 보내서 빠르지만, 사라진 2번은 그대로 없습니다.</figcaption>
+  </figure>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>TCP</th><th>UDP</th></tr></thead>
+    <tbody>
+      <tr><td>비유</td><td>전화: 먼저 연결하고 대화</td><td>편지: 주소만 적어서 바로 보냄</td></tr>
+      <tr><td>연결</td><td>통신 전에 연결을 맺음</td><td>연결 없음</td></tr>
+      <tr><td>신뢰성</td><td>사라진 패킷은 다시 보내고, 순서를 맞춰 줌</td><td>보장 없음. 사라지면 끝, 순서가 바뀔 수 있음</td></tr>
+      <tr><td>데이터 단위</td><td>끊김 없는 바이트 흐름 (경계 없음)</td><td>데이터그램: 보낸 단위 그대로 도착</td></tr>
+      <tr><td>지연</td><td>다시 보내느라 지연이 생길 수 있음</td><td>빠르고 일정함</td></tr>
+      <tr><td>상대 수</td><td>1:1</td><td>1:1, 여럿에게 한꺼번에(브로드캐스트·멀티캐스트)도 가능</td></tr>
+      <tr><td>로봇에서</td><td>명령, 설정, 파일 전송, 원격 접속(SSH)</td><td>센서 스트림, 영상, 같은 네트워크의 상대 찾기</td></tr>
+    </tbody>
+  </table></div>
+  <div class="names"><span><code>TCP</code><i><b>T</b>ransmission <b>C</b>ontrol <b>P</b>rotocol</i></span><span><code>UDP</code><i><b>U</b>ser <b>D</b>atagram <b>P</b>rotocol</i></span><span><code>datagram</code><i>data + tele<b>gram</b> (전보)</i></span></div>
+  <div class="note"><b class="t">최신 값이 중요하면 UDP</b>센서 값은 계속 새로 들어옵니다. TCP는 사라진 0.1초 전 값을 다시 보내느라 그 뒤의 최신 값까지 붙잡아 둘 수 있습니다. 그래서 "최신 값이 중요한 데이터"는 UDP, "하나도 빠지면 안 되는 데이터"는 TCP가 어울립니다.</div>
+
+  <h3>소켓: 통신의 끝점</h3>
+  <p>프로그램이 네트워크로 데이터를 주고받는 창구를 <strong>소켓</strong>이라고 합니다. 커널이 만들어 주는 통신의 끝점이고, 파일처럼 fd 번호로 다룹니다. 소켓을 만들 때 <strong>주소 체계</strong>와 <strong>종류</strong>를 고릅니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>주소 체계</th><th>종류</th><th>결과</th><th>주소 형태</th></tr></thead>
+    <tbody>
+      <tr><td><code>AF_INET</code></td><td><code>SOCK_STREAM</code></td><td>TCP</td><td><code>("192.168.0.15", 5000)</code></td></tr>
+      <tr><td><code>AF_INET</code></td><td><code>SOCK_DGRAM</code></td><td>UDP</td><td><code>("192.168.0.15", 6000)</code></td></tr>
+      <tr><td><code>AF_UNIX</code></td><td><code>SOCK_STREAM</code> / <code>SOCK_DGRAM</code></td><td>같은 컴퓨터 안의 소켓 (7장)</td><td><code>"/tmp/robot.sock"</code></td></tr>
+    </tbody>
+  </table></div>
+  <div class="names"><span><code>socket</code><i>socket (콘센트, 꽂는 구멍)</i></span><span><code>AF</code><i><b>A</b>ddress <b>F</b>amily (주소 체계)</i></span><span><code>INET</code><i><b>I</b>nter<b>net</b></i></span><span><code>STREAM</code><i>stream (흐름)</i></span><span><code>DGRAM</code><i><b>d</b>ata<b>gram</b></i></span></div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>IP 주소와 포트는 각각 무엇을 찾는 데 쓰이나?</summary><div class="a"><p>IP 주소는 네트워크에서 컴퓨터를, 포트는 그 컴퓨터 안에서 통신할 프로세스를 찾는 데 씁니다.</p></div></details>
+    <details class="q"><summary>서버가 <code>127.0.0.1</code>로 기다리는 것과 <code>0.0.0.0</code>으로 기다리는 것의 차이는?</summary><div class="a"><p><code>127.0.0.1</code>은 같은 컴퓨터 안에서 오는 접속만 받고, <code>0.0.0.0</code>은 이 컴퓨터의 모든 네트워크 연결에서 오는 접속을 받으므로 다른 컴퓨터에서도 접속할 수 있습니다.</p></div></details>
+    <details class="q"><summary>카메라 영상 스트림과 "비상 정지" 명령에 각각 어울리는 것은 TCP와 UDP 중 무엇인가?</summary><div class="a"><p>영상은 최신 프레임이 중요하므로 UDP, 비상 정지는 반드시 도착해야 하므로 TCP가 어울립니다.</p></div></details>
+    <details class="q"><summary>내 컴퓨터에서 어떤 TCP 포트가 접속을 기다리고 있는지 보려면?</summary><div class="a"><p><code>ss -tlnp</code> (UDP까지 보려면 <code>ss -tulnp</code>)</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 7 ===================== -->
+<section class="lec" id="c7" data-num="7" data-group="Ⅳ. 컴퓨터 사이의 통신" data-title="소켓 기본 구현">
+  <div class="manhead"><b>SOCKET(2)</b><span>7장</span><span>Socket Programming</span></div>
+  <h2>소켓 기본 구현<small>socket · bind · listen · accept · connect · sendall · recv · 인코딩 · 메시지 경계 · json · struct · UDP · AF_UNIX</small></h2>
+  <p class="lead">Python의 <code>socket</code> 모듈로 TCP와 UDP 통신을 직접 만들어 봅니다. 여기서는 서버 하나와 클라이언트 하나가 1:1로 주고받는 가장 기본적인 형태만 다룹니다. 예제는 한 컴퓨터에서 터미널 두 개로 실행해도 되고, <code>127.0.0.1</code>을 상대 IP로 바꾸면 다른 컴퓨터끼리도 그대로 동작합니다.</p>
+
+  <h3>TCP 통신의 흐름</h3>
+  <p>TCP에는 접속을 <strong>기다리는 쪽(서버)</strong>과 <strong>접속하는 쪽(클라이언트)</strong>이 있습니다. 서버가 먼저 준비하고 있어야 클라이언트가 접속할 수 있습니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 340" role="img" aria-label="TCP 서버는 socket, bind, listen, accept, recv와 send, close 순서로, 클라이언트는 socket, connect, send와 recv, close 순서로 동작">
+        <text class="tb c" x="150" y="14">서버</text>
+        <text class="tb c" x="490" y="14">클라이언트</text>
+        <rect class="bx" x="60" y="30" width="180" height="36" rx="4"/><text class="tb tm c" x="150" y="42">socket()</text><text class="ts c" x="150" y="57">소켓 만들기</text>
+        <rect class="bx" x="60" y="82" width="180" height="36" rx="4"/><text class="tb tm c" x="150" y="94">bind()</text><text class="ts c" x="150" y="109">IP · 포트 붙이기</text>
+        <rect class="bx" x="60" y="134" width="180" height="36" rx="4"/><text class="tb tm c" x="150" y="146">listen()</text><text class="ts c" x="150" y="161">접속 받을 준비</text>
+        <rect class="bx-a" x="60" y="186" width="180" height="36" rx="4"/><text class="tb tm c" x="150" y="198">accept()</text><text class="ts c" x="150" y="213">접속이 올 때까지 기다림</text>
+        <rect class="bx" x="60" y="238" width="180" height="36" rx="4"/><text class="tb tm c" x="150" y="250">recv() / send()</text><text class="ts c" x="150" y="265">데이터 주고받기</text>
+        <rect class="bx" x="60" y="290" width="180" height="36" rx="4"/><text class="tb tm c" x="150" y="302">close()</text><text class="ts c" x="150" y="317">닫기</text>
+        <path class="ln" d="M150 66 V78"/><path class="ln" d="M150 118 V130"/><path class="ln" d="M150 170 V182"/><path class="ln" d="M150 222 V234"/><path class="ln" d="M150 274 V286"/>
+        <rect class="bx" x="400" y="30" width="180" height="36" rx="4"/><text class="tb tm c" x="490" y="42">socket()</text><text class="ts c" x="490" y="57">소켓 만들기</text>
+        <rect class="bx-a" x="400" y="186" width="180" height="36" rx="4"/><text class="tb tm c" x="490" y="198">connect()</text><text class="ts c" x="490" y="213">서버의 IP · 포트로 접속</text>
+        <rect class="bx" x="400" y="238" width="180" height="36" rx="4"/><text class="tb tm c" x="490" y="250">send() / recv()</text><text class="ts c" x="490" y="265">데이터 주고받기</text>
+        <rect class="bx" x="400" y="290" width="180" height="36" rx="4"/><text class="tb tm c" x="490" y="302">close()</text><text class="ts c" x="490" y="317">닫기</text>
+        <path class="ln" d="M490 66 V182"/><path class="ln" d="M490 222 V234"/><path class="ln" d="M490 274 V286"/>
+        <path class="ln-a" d="M400 204 H244"/><text class="ts ta c" x="320" y="194">① 연결 요청</text>
+        <path class="ln" d="M400 250 H244"/><path class="ln" d="M240 262 H396"/><text class="ts c" x="320" y="240">② 데이터</text>
+        <path class="ln" d="M400 308 H244"/><text class="ts c" x="320" y="298">③ 연결 종료</text>
+      </svg>
+    </div>
+    <figcaption>서버는 네 단계를 거쳐 접속을 기다리고, 클라이언트는 <code>connect()</code> 한 번으로 접속합니다. 클라이언트가 연결을 닫으면 서버의 <code>recv()</code>는 빈 값 <code>b''</code>를 돌려받습니다.</figcaption>
+  </figure>
+  <div class="names"><span><code>bind</code><i>bind (묶다): 소켓에 주소를 붙임</i></span><span><code>listen</code><i>listen (귀 기울이다)</i></span><span><code>accept</code><i>accept (받아들이다)</i></span><span><code>connect</code><i>connect (연결하다)</i></span><span><code>recv</code><i><b>rec</b>ei<b>v</b>e (받다)</i></span></div>
+
+  <h3>TCP 서버와 클라이언트</h3>
+  <figure class="fig">
+    <div class="cv"><div class="comm">
+      <div class="end"><b>클라이언트</b><span>노트북 · <code>tcp_client.py</code></span></div>
+      <div class="step"><span class="no">① 보내기</span><code>cli.sendall(data)</code><span class="ar"></span><small>내 버퍼 → 네트워크</small></div>
+      <div class="chan"><b>TCP 연결</b><span>내 버퍼 → 네트워크 → 상대 버퍼</span></div>
+      <div class="step"><span class="no">② 받기</span><code>conn.recv(1024)</code><span class="ar"></span><small>상대 버퍼에서 복사</small></div>
+      <div class="end"><b>서버</b><span>로봇 PC · <code>tcp_server.py</code></span></div>
+      <div class="foot">
+        <span><b>통로</b><code>connect</code>로 맺은 1:1 연결</span>
+        <span><b>복사</b>2번 + 네트워크 전송</span>
+        <span><b>도착</b><code>recv</code>가 기다림. 빠진 조각은 자동으로 다시 보냄</span>
+        <span class="hot"><b>상대</b>다른 컴퓨터도 가능 (IP · 포트)</span>
+      </div>
+    </div></div>
+    <figcaption>TCP. 그림 모양은 파이프와 같고, 통로가 네트워크를 지나 다른 컴퓨터까지 이어진 것이 다릅니다. 실제로 TCP도 파이프처럼 경계 없는 바이트 흐름입니다.</figcaption>
+  </figure>
+  <pre data-label="tcp_server.py">import socket
+
+HOST, PORT = "0.0.0.0", 5000      <span class="c"># 0.0.0.0: 이 컴퓨터의 모든 네트워크에서 접속 받기</span>
+
+srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)          <span class="c"># TCP 소켓</span>
+srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)        <span class="c"># 다시 실행할 때 포트 재사용 허용</span>
+srv.bind((HOST, PORT))
+srv.listen()
+print(f"{PORT}번 포트에서 접속을 기다리는 중...")
+
+conn, addr = srv.accept()         <span class="c"># 접속이 올 때까지 여기서 멈춤</span>
+print("접속:", addr)
+while True:
+    data = conn.recv(1024)        <span class="c"># 최대 1024바이트 받기 (올 때까지 기다림)</span>
+    if not data:                  <span class="c"># b'' → 상대가 연결을 닫음</span>
+        break
+    print("받음:", data.decode())
+    conn.sendall(b"OK: " + data)  <span class="c"># 받은 내용 앞에 OK 를 붙여 돌려보냄</span>
+conn.close()
+srv.close()</pre>
+  <pre data-label="tcp_client.py">import socket
+
+SERVER = ("127.0.0.1", 5000)      <span class="c"># 다른 컴퓨터의 서버라면 그 컴퓨터의 IP 주소</span>
+
+cli = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+cli.connect(SERVER)
+for text in ["hello", "안녕", "bye"]:
+    cli.sendall(text.encode())    <span class="c"># str → bytes 로 바꿔서 보내기</span>
+    reply = cli.recv(1024)
+    print("응답:", reply.decode()) <span class="c"># bytes → str</span>
+cli.close()</pre>
+  <pre><span class="c"># 터미널 1</span>
+<span class="p">$ </span>python3 tcp_server.py
+<span class="o">5000번 포트에서 접속을 기다리는 중...
+접속: ('127.0.0.1', 51234)
+받음: hello
+받음: 안녕
+받음: bye</span>
+<span class="c"># 터미널 2</span>
+<span class="p">$ </span>python3 tcp_client.py
+<span class="o">응답: OK: hello
+응답: OK: 안녕
+응답: OK: bye</span></pre>
+  <p><code>accept()</code>는 접속한 클라이언트 전용의 <strong>새 소켓</strong> <code>conn</code>을 돌려줍니다. 처음 만든 <code>srv</code>는 접속을 받는 데만 쓰고, 실제 데이터는 <code>conn</code>으로 주고받습니다. <code>sendall</code>은 데이터를 전부 보낼 때까지 반복해서 보내 주는 함수이고, <code>send</code>는 일부만 보내고 끝날 수도 있으므로 보통 <code>sendall</code>을 씁니다.</p>
+  <div class="warn"><b class="t">자주 만나는 오류</b>
+    <ul>
+      <li><code>ConnectionRefusedError</code>: 서버가 실행 중이 아니거나, IP·포트가 다릅니다. 서버를 먼저 실행했는지 확인합니다.</li>
+      <li><code>OSError: [Errno 98] Address already in use</code>: 같은 포트를 다른 프로세스가 쓰고 있거나, 방금 끈 서버의 연결이 아직 정리 중입니다. <code>SO_REUSEADDR</code> 설정으로 대부분 해결되고, 다른 프로세스가 쓰고 있다면 <code>ss -tlnp</code>로 찾습니다.</li>
+      <li>같은 컴퓨터에서는 되는데 <strong>다른 컴퓨터에서 안 될 때</strong>: 서버가 <code>127.0.0.1</code>로 bind했는지, 두 컴퓨터가 같은 네트워크인지(<code>ping</code>), 방화벽(<code>sudo ufw status</code>)이 막고 있지 않은지 확인합니다.</li>
+    </ul>
+  </div>
+
+  <h3>문자열과 바이트</h3>
+  <p>소켓은 <strong>바이트</strong>(<code>bytes</code>)만 주고받습니다. 문자열(<code>str</code>)은 <code>.encode()</code>로 바이트로 바꿔 보내고, 받은 바이트는 <code>.decode()</code>로 문자열로 되돌립니다. 기본 방식은 UTF-8이고, 한글 한 글자는 3바이트가 됩니다.</p>
+  <pre><span class="p">&gt;&gt;&gt; </span>"hi".encode()
+<span class="o">b'hi'</span>
+<span class="p">&gt;&gt;&gt; </span>"안녕".encode()
+<span class="o">b'\xec\x95\x88\xeb\x85\x95'</span>
+<span class="p">&gt;&gt;&gt; </span>len("안녕"), len("안녕".encode())       <span class="c"># 글자 수와 바이트 수는 다름</span>
+<span class="o">(2, 6)</span></pre>
+  <div class="names"><span><code>encode</code><i>encode (부호로 바꾸다)</i></span><span><code>decode</code><i>decode (부호를 풀다)</i></span><span><code>UTF-8</code><i><b>U</b>nicode <b>T</b>ransformation <b>F</b>ormat, 8비트 단위</i></span></div>
+
+  <h3>메시지 경계 문제</h3>
+  <p>TCP는 <strong>바이트의 흐름</strong>입니다(4장의 파이프와 같음). <code>sendall</code> 한 번이 <code>recv</code> 한 번과 짝지어진다는 보장이 없습니다. 클라이언트가 <code>"hello"</code>와 <code>"world"</code>를 빠르게 연달아 보내면, 서버는 <code>"helloworld"</code>를 한 번에 받을 수도 있고 <code>"hel"</code>과 <code>"loworld"</code>로 나눠 받을 수도 있습니다. 위의 예제가 잘 동작한 것은 클라이언트가 매번 응답을 기다렸다가 다음 것을 보냈기 때문입니다.</p>
+  <p>그래서 실제로는 메시지 하나가 어디서 끝나는지를 보내는 쪽과 받는 쪽이 약속해야 합니다. 대표적인 방법은 두 가지입니다.</p>
+  <ul>
+    <li><strong>끝 표시</strong>: 메시지마다 끝에 줄바꿈(<code>\n</code>)을 붙이고, 받는 쪽은 줄 단위로 읽습니다.</li>
+    <li><strong>길이 머리말</strong>: 메시지 앞에 "이 메시지는 몇 바이트"라는 고정 크기 숫자를 붙이고, 받는 쪽은 그 길이만큼 모아서 읽습니다.</li>
+  </ul>
+  <p>또 하나의 약속은 <strong>내용의 형식</strong>입니다. 메모리 속의 값(딕셔너리, 숫자)을 바이트 줄로 바꾸는 것을 <strong>직렬화</strong>, 그 반대를 <strong>역직렬화</strong>라고 합니다. 아래는 JSON으로 직렬화하고 줄바꿈으로 경계를 나누는 예입니다.</p>
+  <pre data-label="보내는 쪽 (클라이언트)">import json
+
+msg = {"linear": 0.5, "angular": 0.1}               <span class="c"># 직진 0.5 m/s, 회전 0.1 rad/s</span>
+cli.sendall((json.dumps(msg) + "\n").encode())       <span class="c"># 메시지 하나 = JSON 한 줄</span></pre>
+  <pre data-label="받는 쪽 (서버)">import json
+
+f = conn.makefile("r", encoding="utf-8")    <span class="c"># 소켓을 파일처럼 줄 단위로 읽기</span>
+for line in f:                              <span class="c"># 한 줄 = 메시지 하나. 연결이 닫히면 반복 끝</span>
+    msg = json.loads(line)
+    print(msg["linear"], msg["angular"])</pre>
+  <p>숫자 데이터를 작고 빠르게 보내야 할 때는 <code>struct</code>로 정해진 크기의 바이너리로 바꿉니다.</p>
+  <pre><span class="p">&gt;&gt;&gt; </span>import struct
+<span class="p">&gt;&gt;&gt; </span>data = struct.pack("&lt;ff", 0.5, 0.1)      <span class="c"># float32 두 개 → 8바이트 (&lt; 는 바이트 순서)</span>
+<span class="p">&gt;&gt;&gt; </span>len(data)
+<span class="o">8</span>
+<span class="p">&gt;&gt;&gt; </span>struct.unpack("&lt;ff", data)
+<span class="o">(0.5, 0.10000000149011612)</span>             <span class="c"># float32 라서 약간의 오차</span></pre>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>JSON</th><th>struct (바이너리)</th></tr></thead>
+    <tbody>
+      <tr><td>사람이 읽기</td><td>쉬움</td><td>어려움</td></tr>
+      <tr><td>크기 (위 예)</td><td class="num">32바이트 (줄바꿈 포함)</td><td class="num">8바이트</td></tr>
+      <tr><td>양쪽이 약속할 것</td><td>필드 이름과 값의 뜻</td><td>값의 순서, 자료형, 바이트 순서</td></tr>
+      <tr><td>형식을 바꿀 때</td><td>필드를 추가해도 비교적 안전</td><td>한쪽만 바꾸면 값이 엉뚱하게 해석됨</td></tr>
+    </tbody>
+  </table></div>
+  <div class="names"><span><code>serialization</code><i>serial (일렬로 늘어선): 직렬화</i></span><span><code>JSON</code><i><b>J</b>ava<b>S</b>cript <b>O</b>bject <b>N</b>otation</i></span><span><code>dumps / loads</code><i><b>dump</b> to <b>s</b>tring / <b>load</b> from <b>s</b>tring</i></span><span><code>struct</code><i>structure (구조체)</i></span></div>
+
+  <h3>UDP 보내기와 받기</h3>
+  <figure class="fig">
+    <div class="cv"><div class="comm">
+      <div class="end"><b>보내는 쪽</b><span>라이다 드라이버</span></div>
+      <div class="step"><span class="no">① 보내기</span><code>sock.sendto(data, (ip, port))</code><span class="ar"></span><small>매번 주소를 적어 보냄</small></div>
+      <div class="chan"><b>UDP 데이터그램</b><span>주소가 적힌 패킷 하나씩 · 연결 없음</span></div>
+      <div class="step"><span class="no">② 받기</span><code>sock.recvfrom(1024)</code><span class="ar"></span><small>데이터와 보낸 주소를 받음</small></div>
+      <div class="end"><b>받는 쪽</b><span>모니터링 노트북</span></div>
+      <div class="foot">
+        <span><b>통로</b>연결 없이 패킷 단위로</span>
+        <span><b>복사</b>2번 + 네트워크 전송</span>
+        <span class="hot"><b>도착</b><code>recvfrom</code>이 기다림. 사라진 패킷은 그대로 끝</span>
+        <span><b>상대</b>다른 컴퓨터도 가능, 여럿에게 한꺼번에도 가능</span>
+      </div>
+    </div></div>
+    <figcaption>UDP. TCP 그림과 비교하면 통로에서 "연결"이 빠지고, 도착 칸에서 "다시 보냄"이 빠졌습니다.</figcaption>
+  </figure>
+  <div class="grid2">
+    <div>
+      <pre data-label="udp_receiver.py">import socket
+
+sock = socket.socket(socket.AF_INET,
+                     socket.SOCK_DGRAM)   <span class="c"># UDP</span>
+sock.bind(("0.0.0.0", 6000))
+
+while True:
+    <span class="c"># 데이터그램 하나 = 메시지 하나</span>
+    data, addr = sock.recvfrom(1024)
+    print(addr, "→", data.decode())</pre>
+    </div>
+    <div>
+      <pre data-label="udp_sender.py">import socket, time
+
+sock = socket.socket(socket.AF_INET,
+                     socket.SOCK_DGRAM)
+for i in range(5):
+    <span class="c"># 연결 없이 주소를 적어 바로 보냄</span>
+    sock.sendto(f"scan {i}".encode(),
+                ("127.0.0.1", 6000))
+    time.sleep(0.1)</pre>
+    </div>
+  </div>
+  <p>TCP와 비교하면 다음이 다릅니다.</p>
+  <ul>
+    <li><code>listen</code>, <code>accept</code>, <code>connect</code>가 없습니다. 보낼 때마다 <code>sendto</code>에 상대 주소를 적고, 받을 때는 <code>recvfrom</code>이 보낸 쪽 주소를 함께 알려 줍니다.</li>
+    <li>받는 쪽이 실행 중이 아니어도 <code>sendto</code>는 오류 없이 끝납니다. 데이터는 그냥 사라집니다.</li>
+    <li>데이터그램 단위로 도착하므로 <strong>메시지 경계 문제가 없습니다</strong>. 대신 빠지거나 순서가 바뀔 수 있습니다.</li>
+    <li>데이터그램 하나의 크기에는 한계가 있습니다. 패킷 크기(약 1500바이트)를 넘으면 여러 조각으로 나뉘고, 그중 하나만 사라져도 전체를 잃습니다. 큰 데이터는 직접 나눠 보내야 합니다.</li>
+  </ul>
+
+  <h3>같은 컴퓨터 안의 소켓: Unix 도메인 소켓</h3>
+  <p><code>AF_UNIX</code>를 쓰면 주소가 (IP, 포트) 대신 <strong>파일 경로</strong>가 됩니다. 네트워크 계층을 거치지 않으므로 같은 컴퓨터 안에서는 <code>127.0.0.1</code>로 TCP 통신을 하는 것보다 가볍습니다. 코드는 주소 부분만 다르고 나머지는 거의 같습니다.</p>
+  <figure class="fig">
+    <div class="cv"><div class="comm">
+      <div class="end"><b>클라이언트</b><span>같은 컴퓨터의 프로세스</span></div>
+      <div class="step"><span class="no">① 보내기</span><code>cli.sendall(data)</code><span class="ar"></span><small>커널 버퍼로 복사</small></div>
+      <div class="chan"><b>Unix 소켓</b><span>커널 버퍼 + 이름 <code>/tmp/robot.sock</code></span></div>
+      <div class="step"><span class="no">② 받기</span><code>conn.recv(1024)</code><span class="ar"></span><small>버퍼에서 복사</small></div>
+      <div class="end"><b>서버</b><span>같은 컴퓨터의 프로세스</span></div>
+      <div class="foot">
+        <span><b>통로</b>커널 버퍼 (네트워크 계층 없음)</span>
+        <span><b>복사</b>2번</span>
+        <span><b>도착</b><code>recv</code>가 기다림</span>
+        <span class="hot"><b>상대</b>경로를 아는 같은 컴퓨터의 누구나</span>
+      </div>
+    </div></div>
+    <figcaption>Unix 도메인 소켓. 사용법은 TCP와 같고, 그림은 파이프와 거의 같습니다. 통로에 이름(경로)이 붙어서 부모-자식이 아닌 프로세스끼리도 쓸 수 있다는 점이 다릅니다.</figcaption>
+  </figure>
+  <pre><span class="c"># 서버</span>
+srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+srv.bind("/tmp/robot.sock")     <span class="c"># 이 경로에 소켓 파일이 생김 (ls -l 하면 맨 앞이 s)</span>
+srv.listen()
+<span class="c"># 클라이언트</span>
+cli = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+cli.connect("/tmp/robot.sock")</pre>
+  <div class="note"><b class="t">소켓 파일 지우기</b>서버를 끈 뒤에도 소켓 파일이 남아 있으면 다시 <code>bind</code>할 때 <code>Address already in use</code>가 납니다. 서버 시작 전에 <code>os.unlink(경로)</code>로 지워 둡니다. 도커, 데스크톱 화면 서버 같은 많은 프로그램이 이 방식으로 같은 컴퓨터의 프로세스와 통신합니다.</div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>TCP 서버가 접속을 받기까지 부르는 함수를 순서대로 쓰면?</summary><div class="a"><p><code>socket()</code> → <code>bind()</code> → <code>listen()</code> → <code>accept()</code></p></div></details>
+    <details class="q"><summary>서버의 <code>recv()</code>가 <code>b''</code>를 돌려주었다. 무슨 뜻인가?</summary><div class="a"><p>상대(클라이언트)가 연결을 닫았다는 뜻입니다. 반복을 끝내고 소켓을 닫습니다.</p></div></details>
+    <details class="q"><summary><code>sendall</code>을 두 번 했는데 받는 쪽 <code>recv</code> 한 번에 두 메시지가 붙어서 왔다. 이유와 해결 방법은?</summary><div class="a"><p>TCP는 메시지 경계가 없는 바이트 흐름이기 때문입니다. 메시지마다 줄바꿈 같은 끝 표시를 붙이거나, 앞에 길이를 붙여서 받는 쪽이 경계를 나누게 합니다.</p></div></details>
+    <details class="q"><summary>UDP로 <code>sendto</code>를 했는데 받는 프로그램이 실행 중이 아니었다. 어떻게 되나?</summary><div class="a"><p>보내는 쪽에는 오류가 나지 않고, 데이터는 그대로 사라집니다.</p></div></details>
+    <details class="q"><summary>JSON 대신 <code>struct</code>로 직렬화할 때 장점과 단점은?</summary><div class="a"><p>크기가 작고 빠릅니다. 대신 사람이 읽기 어렵고, 값의 순서·자료형을 양쪽이 정확히 맞춰야 하며 한쪽만 바꾸면 잘못 해석됩니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 8 ===================== -->
+<section class="lec" id="c8" data-num="8" data-group="Ⅳ. 컴퓨터 사이의 통신" data-title="통신 방법 비교">
+  <div class="manhead"><b>SUMMARY</b><span>8장</span><span>Choosing a Method</span></div>
+  <h2>통신 방법 비교와 선택<small>범위 · 복사 횟수 · 데이터 단위 · 1:N · 동기화 · 선택 순서</small></h2>
+  <p class="lead">지금까지 본 방법들을 한 표에 모아 비교하고, 상황에 따라 어떤 방법을 고르는지 정리합니다.</p>
+
+  <h3>한눈에 비교</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>방법</th><th>범위</th><th>복사</th><th>데이터 단위</th><th>여럿에게</th><th>기다림 · 순서 정리</th><th>어울리는 곳</th></tr></thead>
+    <tbody>
+      <tr><td>파일</td><td>같은 컴퓨터</td><td>저장 장치 경유</td><td>파일 전체</td><td>여럿이 읽기 가능</td><td>없음</td><td>기록, 설정, 결과 저장</td></tr>
+      <tr><td>파이프</td><td>부모 ↔ 자식</td><td class="num">2번</td><td>바이트 흐름</td><td>1:1</td><td>커널이 해 줌</td><td>다른 프로그램 실행 결과 받기</td></tr>
+      <tr><td>시그널</td><td>같은 컴퓨터</td><td>번호만</td><td>—</td><td>—</td><td>—</td><td>종료 요청, 이벤트 알림</td></tr>
+      <tr><td>공유 메모리</td><td>같은 컴퓨터</td><td class="num"><strong>0번</strong></td><td>바이트 덩어리</td><td>여럿이 동시에</td><td><strong>직접 구현</strong></td><td>영상, 포인트 클라우드 같은 큰 데이터</td></tr>
+      <tr><td>Unix 소켓</td><td>같은 컴퓨터</td><td class="num">2번</td><td>흐름 또는 데이터그램</td><td>연결마다 1:1</td><td>커널이 해 줌</td><td>같은 컴퓨터의 서버-클라이언트</td></tr>
+      <tr><td>TCP</td><td>네트워크</td><td class="num">2번 이상</td><td>바이트 흐름</td><td>연결마다 1:1</td><td>커널이 해 줌, 재전송</td><td>명령, 설정, 파일 전송</td></tr>
+      <tr><td>UDP</td><td>네트워크</td><td class="num">2번 이상</td><td>데이터그램</td><td>브로드캐스트 · 멀티캐스트</td><td>없음</td><td>센서 스트림, 상대 찾기</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>고르는 순서</h3>
+  <ol>
+    <li><strong>같은 컴퓨터인가?</strong> 아니라면 소켓(TCP 또는 UDP)밖에 없습니다.</li>
+    <li><strong>데이터가 크고 자주 오가는가?</strong> (초당 MB 단위) 같은 컴퓨터라면 공유 메모리를 씁니다. 다만 한쪽이 쓰는 도중에 다른 쪽이 읽지 않도록 조심해야 합니다.</li>
+    <li><strong>작은 데이터를 1:1로?</strong> 부모-자식 사이면 파이프, 아니면 Unix 소켓을 씁니다.</li>
+    <li><strong>알림만 필요한가?</strong> 시그널을 씁니다.</li>
+    <li><strong>네트워크라면</strong> 빠짐없이 도착해야 하면 TCP, 최신 값이 중요하면 UDP를 씁니다.</li>
+  </ol>
+
+  <h3>그런데 실제 로봇에서는</h3>
+  <p>3장의 그림처럼 로봇에는 프로세스가 수십 개 있고, 어떤 둘은 같은 컴퓨터에, 어떤 둘은 다른 컴퓨터에 있습니다. 데이터마다 크기와 중요도도 다릅니다. 화살표 하나마다 위 순서대로 방법을 고르고, 그에 맞는 코드를 따로 작성해야 할까요? 그리고 나중에 프로세스를 다른 컴퓨터로 옮기면 그 코드를 모두 다시 써야 할까요? 다음 장에서 이 문제를 살펴봅니다.</p>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>같은 PC에서 카메라 영상(30fps)을 세 프로세스가 동시에 받아야 한다. 어떤 방법이 알맞나?</summary><div class="a"><p>공유 메모리. 데이터가 크고 여럿이 동시에 읽으므로 복사가 없는 방법이 유리합니다. 쓰는 중에 읽지 않도록 동기화가 필요합니다.</p></div></details>
+    <details class="q"><summary>노트북에서 로봇에게 "임무 시작" 명령을 한 번 보낸다. 어떤 방법이 알맞나?</summary><div class="a"><p>TCP. 다른 컴퓨터이고, 반드시 도착해야 하는 명령입니다.</p></div></details>
+    <details class="q"><summary>로봇의 현재 위치를 노트북 화면에 초당 10번 표시한다. 어떤 방법이 알맞나?</summary><div class="a"><p>UDP. 다른 컴퓨터이고, 하나쯤 빠지더라도 최신 위치를 빨리 받는 것이 중요합니다.</p></div></details>
+    <details class="q"><summary>Python 스크립트에서 <code>ls -l</code>을 실행하고 그 결과를 받아 오려면?</summary><div class="a"><p>파이프. <code>subprocess.run(["ls", "-l"], capture_output=True, text=True)</code>를 쓰면 표준 출력을 파이프로 받아 옵니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 9 ===================== -->
+<section class="lec" id="c9" data-num="9" data-group="Ⅴ. ROS가 필요한 이유" data-title="직접 만든 통신의 한계">
+  <div class="manhead"><b>MIDDLEWARE(7)</b><span>9장</span><span>Limits of Hand-made IPC</span></div>
+  <h2>직접 만든 통신의 한계<small>주소 관리 · 실행 순서 · 1:N · 메시지 형식 · 직렬화 · 전송 방법 선택 · 디버깅 · 기록 · 미들웨어</small></h2>
+  <p class="lead">앞의 장에서 배운 도구만으로도 로봇의 통신을 전부 만들 수는 있습니다. 하지만 실제로 해 보면 데이터를 보내는 코드 자체보다 <strong>그 주변의 일</strong>이 훨씬 많다는 것을 알게 됩니다.</p>
+
+  <h3>라이다 데이터를 세 곳에 보낸다면</h3>
+  <p>라이다 드라이버 프로세스가 스캔 데이터를 장애물 인식, 지도 작성, 기록 프로그램 세 곳에 보내야 한다고 해 봅시다. 7장의 소켓으로 직접 만들면 다음 문제들을 하나씩 해결해야 합니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>문제</th><th>직접 만들면 해야 하는 일</th><th>관련 장</th></tr></thead>
+    <tbody>
+      <tr><td>상대가 어디 있나</td><td>각 프로그램의 IP 주소와 포트를 코드나 설정 파일에 적어 둠. 컴퓨터를 바꾸거나 프로세스를 다른 컴퓨터로 옮기면 모두 고쳐야 함</td><td>6장</td></tr>
+      <tr><td>누가 먼저 켜지나</td><td>서버가 먼저 떠 있어야 함. 순서가 어긋나면 <code>ConnectionRefusedError</code>. 상대가 죽었다 다시 켜지면 재접속하는 코드도 필요</td><td>7장</td></tr>
+      <tr><td>여럿에게 보내기</td><td>받는 쪽 수만큼 연결을 관리. 한 곳이 느리면 나머지까지 늦어지지 않게 처리. 받는 쪽이 늘어나면 보내는 코드를 수정</td><td>7장</td></tr>
+      <tr><td>메시지 형식</td><td>JSON 필드 이름, <code>struct</code> 순서, numpy 모양을 문서로 약속. 한쪽만 바꾸면 조용히 잘못 해석됨</td><td>5 · 7장</td></tr>
+      <tr><td>메시지 경계와 직렬화</td><td>줄바꿈이나 길이 머리말, 직렬화 코드를 프로그램마다 작성. C++ 프로그램과 Python 프로그램이 같은 형식을 따로 구현</td><td>7장</td></tr>
+      <tr><td>전송 방법 선택</td><td>같은 컴퓨터면 공유 메모리, 다른 컴퓨터면 소켓. 상대 위치에 따라 코드가 두 벌</td><td>5 · 8장</td></tr>
+   </tbody>
+  </table></div>
+  <p>이 일들은 로봇마다, 프로그램마다 똑같이 반복됩니다. 그리고 로봇 개발자가 정말 하고 싶은 일, 즉 장애물을 인식하고 경로를 계획하는 알고리즘과는 거리가 멉니다.</p>
+
+  <h3>미들웨어</h3>
+  <p>이렇게 반복되는 통신 문제를 한 번 제대로 풀어서 모두가 쓰도록 만든 중간 계층을 <strong>미들웨어</strong>라고 합니다. 아래에는 운영체제(커널의 IPC와 네트워크)가 있고, 위에는 우리가 만드는 프로그램이 있습니다. 미들웨어는 그 사이에서 "누구에게, 어떤 방법으로, 어떤 형식으로" 보낼지를 대신 처리합니다. 로봇 분야의 대표적인 미들웨어가 <strong>ROS</strong>입니다.</p>
+  <div class="names"><span><code>middleware</code><i><b>middle</b> + soft<b>ware</b> (중간에 있는 소프트웨어)</i></span></div>
+  <div class="note"><b class="t">이미 본 적 있는 추상화</b>리눅스 첫걸음 6장에서 "장치도 파일이다"를 배웠습니다. USB 장치든 디스크든 터미널이든 <code>open</code>, <code>read</code>, <code>write</code>라는 같은 방법으로 다룰 수 있는 것은 커널이 장치마다 다른 세부 사항을 감춰 주기 때문입니다. 미들웨어는 통신에 대해 같은 일을 합니다. 상대가 같은 컴퓨터에 있든 다른 컴퓨터에 있든, 같은 방법으로 보내고 받게 해 줍니다.</div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>상대의 IP 주소와 포트를 코드에 직접 적어 두면 어떤 문제가 생기나?</summary><div class="a"><p>컴퓨터가 바뀌거나 프로세스를 다른 컴퓨터로 옮길 때마다 관련된 모든 프로그램의 코드나 설정을 고쳐야 합니다.</p></div></details>
+    <details class="q"><summary>메시지 형식을 문서로만 약속했을 때 생길 수 있는 문제의 예는?</summary><div class="a"><p>보내는 쪽이 <code>struct</code>의 값 순서를 바꾸거나 numpy 배열 모양을 바꿨는데 받는 쪽을 고치지 않으면, 오류 없이 엉뚱한 값으로 해석됩니다.</p></div></details>
+    <details class="q"><summary>미들웨어란 무엇인가?</summary><div class="a"><p>운영체제와 응용 프로그램 사이에서, 통신처럼 반복되는 공통 문제를 대신 처리해 주는 중간 계층 소프트웨어입니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 10 ===================== -->
+<section class="lec" id="c10" data-num="10" data-group="Ⅴ. ROS가 필요한 이유" data-title="ROS의 통신 구조와 DDS">
+  <div class="manhead"><b>ROS2(1)</b><span>10장</span><span>Communication in ROS 2</span></div>
+  <h2>ROS의 통신 구조와 DDS<small>발행 · 구독 · DDS · 자동 탐색 · 전송 방법 선택 · RMW · rclpy</small></h2>
+  <p class="lead">ROS(Robot Operating System)는 이름과 달리 운영체제가 아니라, 리눅스 위에서 동작하는 <strong>통신 미들웨어</strong>입니다. 여기서는 ROS가 프로그램끼리 데이터를 어떻게 주고받게 해 주는지, 그 아래에서 DDS가 무슨 일을 하는지만 봅니다. ROS의 자세한 사용법은 다음 자료에서 다룹니다.</p>
+  <div class="names"><span><code>ROS</code><i><b>R</b>obot <b>O</b>perating <b>S</b>ystem</i></span></div>
+
+  <h3>통신 구조: 이름으로 보내고, 이름으로 받는다</h3>
+  <p>지금까지의 방법은 모두 "<strong>누구에게</strong> 보낼지"를 알아야 했습니다. 파이프는 부모-자식, 소켓은 상대의 IP와 포트를 알아야 했습니다. ROS에서는 상대 대신 <strong>통로의 이름</strong>만 정합니다. 보내는 프로그램은 <code>/scan</code>이라는 이름에 데이터를 내고(<strong>발행</strong>), 받는 프로그램은 <code>/scan</code>이라는 이름을 지켜보다가 데이터를 받습니다(<strong>구독</strong>). 서로가 누구인지, 어디에 있는지는 몰라도 됩니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 200" role="img" aria-label="라이다 프로그램이 /scan 이름으로 발행하고, 세 프로그램이 /scan 이름을 구독함">
+        <rect class="bx" x="60" y="78" width="140" height="44" rx="4"/><text class="tb c" x="130" y="93">라이다 프로그램</text><text class="ts c" x="130" y="111">보내는 쪽 (발행)</text>
+        <rect class="bx-a" x="260" y="84" width="90" height="32" rx="16"/><text class="tb tm c" x="305" y="100">/scan</text>
+        <rect class="bx" x="430" y="14" width="160" height="44" rx="4"/><text class="tb c" x="510" y="29">장애물 인식</text><text class="ts c" x="510" y="47">받는 쪽 (구독)</text>
+        <rect class="bx" x="430" y="78" width="160" height="44" rx="4"/><text class="tb c" x="510" y="93">지도 작성</text><text class="ts c" x="510" y="111">받는 쪽 (구독)</text>
+        <rect class="bx" x="430" y="142" width="160" height="44" rx="4"/><text class="tb c" x="510" y="157">기록 프로그램</text><text class="ts c" x="510" y="175">받는 쪽 (구독)</text>
+        <path class="ln-a" d="M200 100 L256 100"/><text class="ts ta c" x="228" y="88">발행</text>
+        <path class="ln" d="M350 100 L426 36"/>
+        <path class="ln" d="M350 100 L426 100"/>
+        <path class="ln" d="M350 100 L426 164"/>
+        <text class="ts c" x="388" y="190">구독</text>
+      </svg>
+    </div>
+    <figcaption>보내는 쪽은 <code>/scan</code>에 데이터를 낼 뿐 누가 받는지 모르고, 받는 쪽도 누가 보내는지 모릅니다. 받는 쪽을 하나 더 늘려도 보내는 쪽 코드는 그대로이고, 한 번 보낸 데이터가 받는 쪽 모두에게 갑니다(1:N).</figcaption>
+  </figure>
+  <p>3장의 공통 구조 그림으로 그려 보면 다음과 같습니다.</p>
+  <figure class="fig">
+    <div class="cv"><div class="comm">
+      <div class="end"><b>보내는 프로그램</b><span>라이다 프로그램</span></div>
+      <div class="step"><span class="no">① 보내기</span><code>self.pub.publish(msg)</code><span class="ar"></span><small>이름(<code>/scan</code>)에 냄</small></div>
+      <div class="chan"><b>이름 <code>/scan</code></b><span>실제 통로(공유 메모리 · UDP)는 DDS가 고름</span></div>
+      <div class="step"><span class="no">② 받기</span><code>on_scan(msg)</code><span class="ar"></span><small>도착하면 함수가 불림</small></div>
+      <div class="end"><b>받는 프로그램들</b><span>장애물 인식, 지도 작성 …</span></div>
+      <div class="foot">
+        <span class="hot"><b>통로</b>이름만 정하면 DDS가 알맞은 방법 선택</span>
+        <span><b>복사</b>같은 컴퓨터면 줄이고, 다르면 네트워크로</span>
+        <span class="hot"><b>도착</b><code>spin()</code>이 기다렸다가 받는 함수 호출</span>
+        <span class="hot"><b>상대</b>이름을 아는 누구나 · 다른 컴퓨터 · 여럿</span>
+      </div>
+    </div></div>
+    <figcaption>그림의 모양은 4~7장의 방법과 같습니다. 다른 점은 아래 네 칸을 개발자가 정하지 않고, ROS 아래의 DDS가 대신 정해 준다는 것입니다.</figcaption>
+  </figure>
+  <div class="names"><span><code>publish</code><i>publish (발행하다)</i></span><span><code>subscribe</code><i>subscribe (구독하다)</i></span></div>
+
+  <h3>DDS: ROS 아래에서 실제로 통신하는 것</h3>
+  <p>ROS 2는 통신 기능을 직접 만들지 않고 <strong>DDS</strong>라는 통신 표준을 가져다 씁니다. DDS는 원래 군사·항공·공장 설비처럼 많은 장비가 데이터를 실시간으로 주고받아야 하는 곳에서 쓰던 발행/구독 표준입니다. 우리가 <code>publish</code>를 부르면 그 아래에서 일어나는 일은 다음과 같습니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 344" role="img" aria-label="내 코드, rclpy, rcl, rmw, DDS, 공유 메모리와 UDP, 리눅스 커널 순서로 쌓인 ROS 2 계층 구조">
+        <rect class="bx-a" x="150" y="10" width="300" height="36" rx="4"/><text class="tb c" x="300" y="22">내 코드 (Python)</text><text class="ts tm c" x="300" y="37">publish(msg) · 받는 함수</text>
+        <rect class="bx" x="150" y="58" width="300" height="36" rx="4"/><text class="tb tm c" x="300" y="70">rclpy</text><text class="ts c" x="300" y="85">Python용 ROS 2 라이브러리</text>
+        <rect class="bx" x="150" y="106" width="300" height="36" rx="4"/><text class="tb tm c" x="300" y="118">rcl</text><text class="ts c" x="300" y="133">언어 공통 C 라이브러리</text>
+        <rect class="bx" x="150" y="154" width="300" height="36" rx="4"/><text class="tb tm c" x="300" y="166">rmw</text><text class="ts c" x="300" y="181">DDS 구현을 바꿔 끼우는 연결부</text>
+        <rect class="bx" x="150" y="202" width="300" height="36" rx="4"/><text class="tb c" x="300" y="214">DDS (기본: Fast DDS)</text><text class="ts c" x="300" y="229">탐색 · 직렬화 · 전송 방법 선택</text>
+        <rect class="bx" x="150" y="250" width="145" height="36" rx="4"/><text class="tb c" x="222" y="262">공유 메모리</text><text class="ts c" x="222" y="277">같은 컴퓨터</text>
+        <rect class="bx" x="305" y="250" width="145" height="36" rx="4"/><text class="tb c" x="377" y="262">UDP</text><text class="ts c" x="377" y="277">다른 컴퓨터 · 탐색</text>
+        <rect class="bx-mute" x="150" y="298" width="300" height="36" rx="4"/><text class="tb c" x="300" y="310">리눅스 커널</text><text class="ts c" x="300" y="325">프로세스 · 메모리 · 소켓</text>
+        <path class="ln" d="M300 46 V54"/><path class="ln" d="M300 94 V102"/><path class="ln" d="M300 142 V150"/><path class="ln" d="M300 190 V198"/>
+        <path class="ln" d="M222 238 V246"/><path class="ln" d="M377 238 V246"/>
+        <path class="ln" d="M222 286 V294"/><path class="ln" d="M377 286 V294"/>
+        <path class="edge-a" d="M140 60 H132 V286 H140"/>
+        <text class="ts ta c" transform="rotate(-90 116 173)" x="116" y="173">ROS 2가 대신 해 주는 부분</text>
+        <text class="ts" x="466" y="28">개발자가 쓰는 부분</text>
+        <text class="ts" x="466" y="220">9장의 문제 대부분</text>
+        <text class="ts" x="466" y="268">5장 / 6 · 7장</text>
+        <text class="ts" x="466" y="316">1 · 2 · 4장</text>
+      </svg>
+    </div>
+    <figcaption>개발자는 맨 위의 코드만 작성합니다. 그 아래는 ROS 2와 DDS가 처리하고, 가장 아래에서는 결국 이 자료에서 배운 공유 메모리와 UDP 소켓이 쓰입니다.</figcaption>
+  </figure>
+  <p>DDS가 해 주는 일은 크게 세 가지입니다.</p>
+  <ul>
+    <li><strong>자동 탐색</strong>: 프로그램이 켜지면 DDS가 같은 네트워크에 UDP 멀티캐스트(여럿에게 한꺼번에 보내기)로 "나는 <code>/scan</code>을 보낸다", "나는 <code>/scan</code>을 받고 싶다"고 알립니다. 이름이 맞는 상대끼리 서로의 주소를 알아내 연결하므로, 코드에 IP 주소를 적을 필요가 없고 어느 쪽을 먼저 켜도 됩니다.</li>
+    <li><strong>직렬화</strong>: 보낼 데이터를 바이트 줄로 바꾸고, 받는 쪽에서 다시 원래 값으로 되돌립니다. 7장에서 JSON과 <code>struct</code>로 직접 하던 일입니다.</li>
+    <li><strong>전송 방법 선택</strong>: 상대가 같은 컴퓨터에 있으면 공유 메모리로, 다른 컴퓨터에 있으면 UDP로 보냅니다(Fast DDS 기본 설정 기준). 8장에서 상황마다 직접 고르던 일입니다.</li>
+  </ul>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 210" role="img" aria-label="DDS 자동 탐색: 보내는 쪽과 받는 쪽이 멀티캐스트로 자기를 알리고, 이름이 맞으면 연결되어 데이터가 흐름">
+        <rect class="bx" x="20" y="70" width="170" height="60" rx="5"/><text class="tb c" x="105" y="92">라이다 프로그램</text><text class="ts c" x="105" y="112">"/scan 을 보낸다"</text>
+        <rect class="bx" x="450" y="70" width="170" height="60" rx="5"/><text class="tb c" x="535" y="92">지도 작성</text><text class="ts c" x="535" y="112">"/scan 을 받고 싶다"</text>
+        <rect class="bx-mute" x="245" y="14" width="150" height="40" rx="20"/><text class="ts c" x="320" y="30">같은 네트워크 전체</text><text class="ts c" x="320" y="45">(멀티캐스트)</text>
+        <path class="ln" d="M150 70 L250 46"/><text class="ts" x="140" y="48" text-anchor="end">① 나를 알림</text>
+        <path class="ln" d="M490 70 L390 46"/><text class="ts" x="500" y="48">① 나를 알림</text>
+        <path class="ln-x" d="M190 150 H450"/><text class="ts c" x="320" y="144">② 이름이 같다 → 서로의 주소를 알게 됨</text>
+        <path class="ln-a" d="M190 178 L446 178"/><text class="ts ta c" x="320" y="198">③ 데이터 전송 (같은 컴퓨터: 공유 메모리, 다른 컴퓨터: UDP)</text>
+      </svg>
+    </div>
+    <figcaption>DDS의 자동 탐색. 7장의 TCP처럼 서버를 먼저 켜고 클라이언트가 IP와 포트로 접속하는 과정이 없습니다. 이름만 맞으면 나중에 켜진 프로그램도 자동으로 합류합니다.</figcaption>
+  </figure>
+  <p><strong>rmw</strong>는 DDS 구현을 바꿔 끼울 수 있게 해 주는 층입니다. DDS 구현은 Fast DDS 말고도 여러 가지가 있는데, 환경 변수 하나(<code>RMW_IMPLEMENTATION</code>)로 다른 것을 골라도 내 코드는 그대로입니다.</p>
+  <div class="names"><span><code>DDS</code><i><b>D</b>ata <b>D</b>istribution <b>S</b>ervice</i></span><span><code>RMW</code><i><b>R</b>OS <b>M</b>iddle<b>w</b>are</i></span><span><code>rcl</code><i><b>R</b>OS <b>C</b>lient <b>L</b>ibrary</i></span><span><code>rclpy</code><i><b>rcl</b> for <b>Py</b>thon</i></span><span><code>multicast</code><i>multi (여럿) + cast (던지다)</i></span></div>
+
+  <h3>코드로 비교하기</h3>
+  <p>7장의 소켓 예제와 같은 일, 즉 한쪽이 문자열을 보내고 다른 쪽이 받는 프로그램을 ROS 2로 쓰면 다음과 같습니다. 통신에 관련된 줄만 보면 됩니다.</p>
+  <pre data-label="talker.py (보내는 쪽)">import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String          <span class="c"># 보낼 데이터의 형식: 문자열 하나</span>
+
+class Talker(Node):
+    def __init__(self):
+        super().__init__("talker")
+        self.pub = self.create_publisher(String, "chatter", 10)     <span class="c"># "chatter" 라는 이름으로 보낼 준비</span>
+        self.timer = self.create_timer(0.5, self.tick)              <span class="c"># 0.5초마다 tick 호출</span>
+        self.n = 0
+
+    def tick(self):
+        msg = String()
+        msg.data = f"hello {self.n}"
+        self.pub.publish(msg)                                       <span class="c"># ① 보내기: 누가 받는지 모름</span>
+        print("보냄:", msg.data)
+        self.n += 1
+
+rclpy.init()
+rclpy.spin(Talker())        <span class="c"># 타이머 시간이 되면 tick 을 불러 주며 계속 실행</span></pre>
+  <pre data-label="listener.py (받는 쪽)">import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
+class Listener(Node):
+    def __init__(self):
+        super().__init__("listener")
+        self.create_subscription(String, "chatter", self.on_msg, 10)  <span class="c"># "chatter" 를 받겠다고 등록</span>
+
+    def on_msg(self, msg):                     <span class="c"># ② 받기: 데이터가 올 때마다 불림</span>
+        print("받음:", msg.data)
+
+rclpy.init()
+rclpy.spin(Listener())      <span class="c"># 데이터가 오기를 기다리다가 on_msg 를 불러 줌</span></pre>
+  <pre><span class="c"># 두 터미널 모두 먼저 ROS 2 환경을 불러옴 (.bashrc 에 넣어 두었다면 생략)</span>
+<span class="p">$ </span>source /opt/ros/humble/setup.bash
+<span class="c"># 터미널 1</span>
+<span class="p">$ </span>python3 talker.py
+<span class="o">보냄: hello 0
+보냄: hello 1</span>
+<span class="c"># 터미널 2</span>
+<span class="p">$ </span>python3 listener.py
+<span class="o">받음: hello 1
+받음: hello 2</span></pre>
+  <p>7장의 코드와 비교하면 <strong>없는 것</strong>이 눈에 띕니다. IP 주소, 포트, <code>bind</code>, <code>connect</code>, <code>accept</code>, <code>encode</code>, JSON, 줄바꿈 처리, 재접속 코드가 하나도 없습니다. 대신 <strong>이름</strong>(<code>"chatter"</code>)과 <strong>데이터 형식</strong>(<code>String</code>)만 있습니다.</p>
+  <ul>
+    <li>talker와 listener 중 <strong>어느 것을 먼저 실행해도</strong> 됩니다. DDS의 자동 탐색이 서로를 찾아 줍니다.</li>
+    <li>listener를 <strong>두 개</strong> 띄우면 둘 다 같은 데이터를 받습니다.</li>
+    <li>두 프로그램을 같은 네트워크의 <strong>다른 컴퓨터</strong>에서 실행해도 코드를 고칠 필요가 없습니다. 같은 컴퓨터면 공유 메모리, 다른 컴퓨터면 UDP로 DDS가 알아서 바꿉니다.</li>
+  </ul>
+  <div class="note"><b class="t">spin과 받는 함수</b>7장의 서버는 <code>recv()</code>를 직접 부르고 거기서 기다렸습니다. ROS 2에서는 <code>rclpy.spin()</code>이 대신 기다리다가 데이터가 오면 등록해 둔 함수(<code>on_msg</code>)를 불러 줍니다. 이렇게 "일이 생기면 불러 달라고 맡겨 두는 함수"를 <strong>콜백</strong>이라고 합니다. <code>create_publisher</code>와 <code>create_subscription</code>의 마지막 숫자 10은 지금은 신경 쓰지 않아도 됩니다.</div>
+  <div class="names"><span><code>spin</code><i>spin (계속 돌다)</i></span><span><code>callback</code><i>call back (나중에 다시 불러 줌)</i></span><span><code>std_msgs</code><i><b>st</b>an<b>d</b>ard <b>m</b>e<b>s</b>sa<b>g</b>e<b>s</b></i></span></div>
+
+  <h3>정리: ROS가 대신 해 주는 통신 일</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>직접 만들 때의 문제 (9장)</th><th>ROS 2에서는</th></tr></thead>
+    <tbody>
+      <tr><td>상대의 IP · 포트 관리</td><td>이름만 정하면 DDS가 자동 탐색</td></tr>
+      <tr><td>실행 순서, 재접속</td><td>어떤 순서로 켜도 연결됨. 나중에 켜진 프로그램도 자동으로 합류</td></tr>
+      <tr><td>여럿에게 보내기</td><td>발행/구독. 받는 쪽을 늘려도 보내는 쪽 코드는 그대로</td></tr>
+      <tr><td>메시지 형식, 직렬화, 경계</td><td>데이터 형식만 정하면 DDS가 직렬화</td></tr>
+      <tr><td>공유 메모리냐 소켓이냐</td><td>DDS가 상대 위치를 보고 선택</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><b class="t">그래도 아래 계층을 알아야 하는 이유</b>추상화는 잘 동작할 때는 보이지 않지만, 문제가 생기면 결국 아래 계층을 들여다봐야 합니다. 다른 컴퓨터의 데이터가 안 오면 네트워크와 IP 주소(6장)를, 큰 영상이 느리면 복사 횟수와 공유 메모리(5장)를, <kbd>Ctrl</kbd>+<kbd>C</kbd>로 껐는데 로봇이 멈추지 않으면 시그널 처리(4장)를 떠올려야 합니다. 이 자료의 1~8장이 그때 필요한 지식입니다.</div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>ROS는 운영체제인가?</summary><div class="a"><p>아닙니다. 리눅스 같은 운영체제 위에서 동작하는 통신 미들웨어입니다.</p></div></details>
+    <details class="q"><summary>소켓 통신과 ROS 통신에서 "상대를 정하는 방법"은 어떻게 다른가?</summary><div class="a"><p>소켓은 상대의 IP 주소와 포트를 직접 지정하고, ROS는 통로의 이름만 정합니다. 같은 이름을 쓰는 상대는 DDS가 찾아서 연결해 줍니다.</p></div></details>
+    <details class="q"><summary>talker와 listener 중 무엇을 먼저 실행해야 하나?</summary><div class="a"><p>상관없습니다. DDS의 자동 탐색이 서로를 찾아 연결합니다. (7장의 TCP에서는 서버를 먼저 실행해야 했습니다.)</p></div></details>
+    <details class="q"><summary>같은 컴퓨터에 있는 두 프로그램 사이의 데이터는 보통 어떻게 전달되나? 다른 컴퓨터라면?</summary><div class="a"><p>Fast DDS 기본 설정에서는 같은 컴퓨터면 공유 메모리, 다른 컴퓨터면 UDP를 씁니다.</p></div></details>
+    <details class="q"><summary>DDS가 해 주는 세 가지 일은?</summary><div class="a"><p>자동 탐색(상대 찾기), 직렬화(데이터를 바이트로 바꾸고 되돌리기), 전송 방법 선택(공유 메모리 또는 UDP).</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 부록 ===================== -->
+<section class="lec" id="ref" data-num="A" data-group="부록" data-title="한눈에 보기" data-track="false">
+  <div class="manhead"><b>INDEX</b><span>부록</span><span>Quick Reference</span></div>
+  <h2>한눈에 보기</h2>
+  <p class="lead">이 자료에 나온 용어, Python 함수, 확인용 명령을 모았습니다.</p>
+
+  <h3>용어</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>용어</th><th>원래 이름</th><th>뜻</th><th>장</th></tr></thead>
+    <tbody>
+      <tr><td>프로세스</td><td class="onm">process</td><td>메모리에 올라가 실행 중인 프로그램</td><td>1</td></tr>
+      <tr><td>바이트코드</td><td class="onm">bytecode</td><td>Python 소스가 변환된 중간 명령. 인터프리터가 실행</td><td>1</td></tr>
+      <tr><td>로직 영역 (text)</td><td class="onm">text segment</td><td>기계어 명령이 있는 메모리 영역</td><td>2</td></tr>
+      <tr><td>데이터 영역</td><td class="onm">data · bss · heap · stack</td><td>값이 있는 메모리 영역</td><td>2</td></tr>
+      <tr><td>가상 메모리</td><td class="onm">virtual memory</td><td>프로세스마다 따로 있는 주소 공간. 페이지 테이블로 실제 메모리에 연결</td><td>2</td></tr>
+      <tr><td>IPC</td><td class="onm"><b>I</b>nter-<b>P</b>rocess <b>C</b>ommunication</td><td>프로세스 간 통신</td><td>3</td></tr>
+      <tr><td>지연 / 대역폭</td><td class="onm">latency / bandwidth</td><td>도착까지 걸리는 시간 / 초당 보낼 수 있는 양</td><td>3</td></tr>
+      <tr><td>파이프</td><td class="onm">pipe</td><td>커널 안의 한 방향 바이트 통로</td><td>4</td></tr>
+      <tr><td>블로킹</td><td class="onm">blocking</td><td>결과가 나올 때까지 함수가 멈춰 기다리는 것</td><td>4</td></tr>
+      <tr><td>시그널 / 핸들러</td><td class="onm">signal / handler</td><td>번호 하나로 된 알림 / 알림을 받으면 실행할 함수</td><td>4</td></tr>
+      <tr><td>공유 메모리</td><td class="onm">shared memory</td><td>여러 프로세스에 함께 연결된 실제 메모리 구역</td><td>5</td></tr>
+      <tr><td>IP 주소 / 포트</td><td class="onm"><b>I</b>nternet <b>P</b>rotocol / port</td><td>컴퓨터를 찾는 주소 / 컴퓨터 안의 프로세스를 찾는 번호</td><td>6</td></tr>
+      <tr><td>TCP / UDP</td><td class="onm"><b>T</b>ransmission <b>C</b>ontrol / <b>U</b>ser <b>D</b>atagram <b>P</b>rotocol</td><td>연결형·신뢰성 보장 / 비연결형·빠름</td><td>6</td></tr>
+      <tr><td>소켓</td><td class="onm">socket</td><td>프로그램이 통신에 쓰는 끝점</td><td>6 · 7</td></tr>
+      <tr><td>직렬화</td><td class="onm">serialization</td><td>메모리 속 값을 보낼 수 있는 바이트 줄로 바꾸는 것</td><td>7</td></tr>
+      <tr><td>미들웨어</td><td class="onm">middleware</td><td>운영체제와 응용 프로그램 사이에서 공통 문제를 처리하는 계층</td><td>9</td></tr>
+      <tr><td>발행 / 구독</td><td class="onm">publish / subscribe</td><td>상대 대신 통로의 이름으로 보내고 받는 방식</td><td>10</td></tr>
+      <tr><td>DDS</td><td class="onm"><b>D</b>ata <b>D</b>istribution <b>S</b>ervice</td><td>ROS 2 아래에서 탐색·직렬화·전송을 맡는 통신 표준</td><td>10</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Python 모듈과 함수</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>모듈</th><th>함수 · 클래스</th><th>하는 일</th><th>장</th></tr></thead>
+    <tbody>
+      <tr><td><code>os</code></td><td><code>fork()</code>, <code>waitpid()</code>, <code>getpid()</code></td><td>자식 프로세스 만들기, 기다리기, 내 PID</td><td>2</td></tr>
+      <tr><td><code>os</code></td><td><code>pipe()</code>, <code>read()</code>, <code>write()</code>, <code>close()</code></td><td>파이프 만들고 읽고 쓰기</td><td>4</td></tr>
+      <tr><td><code>os</code></td><td><code>kill()</code></td><td>시그널 보내기</td><td>4</td></tr>
+      <tr><td><code>subprocess</code></td><td><code>run(..., capture_output=True)</code></td><td>다른 프로그램 실행하고 출력 받기</td><td>4</td></tr>
+      <tr><td><code>signal</code></td><td><code>signal(번호, 함수)</code></td><td>시그널 핸들러 등록</td><td>4</td></tr>
+      <tr><td><code>multiprocessing.shared_memory</code></td><td><code>SharedMemory(name, create, size)</code></td><td>공유 메모리 만들기·연결하기</td><td>5</td></tr>
+      <tr><td><code>socket</code></td><td><code>socket()</code>, <code>bind()</code>, <code>listen()</code>, <code>accept()</code>, <code>connect()</code></td><td>TCP 연결 준비</td><td>7</td></tr>
+      <tr><td><code>socket</code></td><td><code>sendall()</code>, <code>recv()</code>, <code>sendto()</code>, <code>recvfrom()</code></td><td>TCP / UDP 보내고 받기</td><td>7</td></tr>
+      <tr><td><code>json</code>, <code>struct</code></td><td><code>dumps()</code>, <code>loads()</code>, <code>pack()</code>, <code>unpack()</code></td><td>직렬화 / 역직렬화</td><td>7</td></tr>
+      <tr><td><code>rclpy</code></td><td><code>create_publisher()</code>, <code>create_subscription()</code>, <code>spin()</code></td><td>ROS 2 발행·구독, 실행</td><td>10</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>확인용 명령</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>명령</th><th>무엇을 보나</th><th>장</th></tr></thead>
+    <tbody>
+      <tr><td><code>ps -ef</code>, <code>pgrep -a 이름</code></td><td>실행 중인 프로세스</td><td>1</td></tr>
+      <tr><td><code>cat /proc/PID/maps</code></td><td>프로세스의 메모리 구역과 권한</td><td>2</td></tr>
+      <tr><td><code>ls -l</code>의 첫 글자 <code>s</code></td><td>소켓 파일</td><td>7</td></tr>
+      <tr><td><code>kill -USR1 PID</code>, <code>kill -l</code></td><td>시그널 보내기, 시그널 목록</td><td>4</td></tr>
+      <tr><td><code>ls -l /dev/shm</code></td><td>공유 메모리 목록</td><td>5</td></tr>
+      <tr><td><code>hostname -I</code>, <code>ping</code></td><td>내 IP, 상대에 닿는지</td><td>6</td></tr>
+      <tr><td><code>ss -tulnp</code></td><td>열려 있는 TCP·UDP 포트와 프로세스</td><td>6 · 7</td></tr>
+   </tbody>
+  </table></div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

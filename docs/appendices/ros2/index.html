@@ -1,0 +1,2137 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ROS 2 기초</title>
+<meta name="description" content="ROS 2의 기본 개념과 그래프, 명령어와 도구, Python 패키지, 세 가지 통신(Topic · Service · Action), 노드·런치·설정 파일 구조, URDF와 TF2를 차례로 설명하는 학습 자료">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;600;800&family=Nanum+Gothic+Coding:wght@400;700&display=swap">
+<link rel="stylesheet" href="../../assets/style.css">
+<script src="../../assets/site.js"></script>
+</head>
+<body data-page="ros2" data-brand="ROS2" data-name="ROS 2 기초" data-home="../../index.html">
+<div class="shell">
+<main id="top">
+
+<header class="intro">
+  <div class="manline"><span>ROS2</span><span>ROS 2 기초</span><span>12장 + 부록</span></div>
+  <h1>ROS 2로 로봇 소프트웨어를 구성하는 방법</h1>
+  <p>프로세스 간 통신 자료의 마지막 장에서 ROS 2가 통신을 대신 처리해 주는 미들웨어라는 것을 보았습니다. 이 자료에서는 그 위에서 로봇 소프트웨어를 어떻게 나누고, 만들고, 실행하고, 들여다보는지를 차례로 설명합니다. ROS 2가 무엇인지와 노드들의 연결(그래프)에서 시작해, 명령어와 도구로 실행 중인 시스템을 살펴보고, Python 패키지로 직접 노드를 만들고, 세 가지 통신 방식을 익힌 뒤, 노드·launch·설정 파일로 나누는 워크스페이스 구조를 거쳐 로봇의 모양과 좌표를 다루는 URDF와 TF2까지 다룹니다. 코드는 모두 Python입니다.</p>
+  <div class="legend">
+    <span><code>$</code> 터미널에 입력</span>
+    <span><code># 회색 글씨</code> 설명 (입력하지 않음)</span>
+    <span>기준 환경: Ubuntu 22.04 + ROS 2 Humble</span>
+  </div>
+  <div class="route" aria-label="학습 순서">
+    <a href="#c1">ROS 2란</a><span>→</span><a href="#c2">환경</a><span>→</span><a href="#c3">그래프</a><span>→</span><a href="#c4">명령어</a><span>→</span><a href="#c5">도구</a><span>→</span><a href="#c6">Python 패키지</a><span>→</span><a href="#c7">Topic</a><span>→</span><a href="#c8">Service</a><span>→</span><a href="#c9">Action</a><span>→</span><a href="#c10">노드·런치·설정</a><span>→</span><a href="#c11">URDF</a><span>→</span><a href="#c12">TF2</a>
+  </div>
+</header>
+
+<!-- ===================== 1 ===================== -->
+<section class="lec" id="c1" data-num="1" data-group="Ⅰ. ROS 2 기본" data-title="ROS 2란 무엇인가">
+  <div class="manhead"><b>ROS2(7)</b><span>1장</span><span>What is ROS 2</span></div>
+  <h2>ROS 2란 무엇인가<small>로봇 소프트웨어 플랫폼 · 하드웨어 추상화 · 미들웨어 · 배포판</small></h2>
+  <p class="lead">ROS는 이름에 "운영체제"가 들어 있지만, 리눅스 위에 설치해서 쓰는 <strong>로봇 소프트웨어 플랫폼</strong>입니다. 프로그램끼리의 통신, 개발과 디버깅 도구, 그리고 전 세계 개발자가 만든 수많은 패키지를 한데 묶어 제공합니다.</p>
+  <div class="names"><span><code>ROS</code><i><b>R</b>obot <b>O</b>perating <b>S</b>ystem</i></span><span><code>platform</code><i>platform (그 위에서 무언가를 만드는 기반)</i></span></div>
+
+  <h3>ROS가 없던 시절의 로봇 개발</h3>
+  <p>로봇 하나에는 카메라, 라이다, IMU, 모터 드라이버처럼 서로 다른 회사의 장치가 여러 개 들어갑니다. 공통 플랫폼이 없으면 다음과 같은 문제가 반복됩니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>문제</th><th>구체적으로</th></tr></thead>
+    <tbody>
+      <tr><td>모든 것을 직접 개발</td><td>하드웨어 제어부터 비전, 위치 추정, 경로 계획까지 팀이 전부 만들어야 함</td></tr>
+      <tr><td>장치마다 다른 사용법</td><td>센서 회사마다 라이브러리(API)의 모양이 달라서 새 장치를 쓸 때마다 다시 배워야 함</td></tr>
+      <tr><td>하드웨어에 묶인 코드</td><td>센서나 로봇을 바꾸면 그 장치를 직접 부르던 코드를 모두 고쳐야 함</td></tr>
+      <tr><td>디버깅 도구 부족</td><td>데이터를 보거나 기록하려면 출력 코드와 도구를 매번 직접 작성</td></tr>
+      <tr><td>통신 코드 반복</td><td>프로그램끼리 데이터를 주고받는 코드를 매번 새로 작성 (IPC 자료 9장)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>해결 방법: 하드웨어 추상화와 공통 규격</h3>
+  <p>ROS는 이 문제를 <strong>나누고 규격을 정하는</strong> 방법으로 풉니다. 하드웨어를 직접 다루는 부분(드라이버)과 데이터를 처리하는 부분(알고리즘)을 서로 다른 프로그램으로 나누고, 그 사이에 오가는 데이터의 형식을 표준으로 정해 둡니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 230" role="img" aria-label="서로 다른 회사의 라이다 드라이버들이 같은 표준 메시지 LaserScan을 내고, 장애물 인식과 지도 작성 프로그램은 그 표준 메시지만 받음">
+        <rect class="bx" x="20" y="24" width="150" height="40" rx="4"/><text class="t c" x="95" y="44">A사 라이다 드라이버</text>
+        <rect class="bx" x="20" y="94" width="150" height="40" rx="4"/><text class="t c" x="95" y="114">B사 라이다 드라이버</text>
+        <rect class="bx" x="20" y="164" width="150" height="40" rx="4"/><text class="t c" x="95" y="184">시뮬레이터</text>
+        <rect class="bx-a" x="240" y="84" width="160" height="60" rx="5"/><text class="tb c" x="320" y="104">표준 메시지</text><text class="ts tm c" x="320" y="124">sensor_msgs/LaserScan</text>
+        <rect class="bx" x="470" y="54" width="150" height="40" rx="4"/><text class="t c" x="545" y="74">장애물 인식</text>
+        <rect class="bx" x="470" y="134" width="150" height="40" rx="4"/><text class="t c" x="545" y="154">지도 작성</text>
+        <path class="ln" d="M170 44 L236 100"/><path class="ln" d="M170 114 L236 114"/><path class="ln" d="M170 184 L236 128"/>
+        <path class="ln-a" d="M400 104 L466 78"/><path class="ln-a" d="M400 124 L466 150"/>
+        <text class="ts c" x="95" y="222">하드웨어마다 다름</text>
+        <text class="ts c" x="545" y="222">하드웨어를 몰라도 됨</text>
+      </svg>
+    </div>
+    <figcaption>라이다를 다른 회사 제품으로 바꾸거나 시뮬레이터로 대체해도, 드라이버만 바꾸면 오른쪽 프로그램은 그대로 동작합니다. 같은 형식만 지키면 다른 사람이 만든 프로그램도 그대로 가져다 쓸 수 있습니다.</figcaption>
+  </figure>
+  <p>이렇게 나눠 두면 하드웨어, 통신(미들웨어), 응용 소프트웨어를 각자 따로 발전시킬 수 있습니다. 사용자가 늘면 공개 패키지가 늘고, 패키지가 늘면 다시 사용자가 느는 <strong>생태계</strong>가 만들어집니다. 오늘날 대부분의 연구용·교육용 로봇과 센서가 ROS 드라이버를 함께 제공하는 이유입니다.</p>
+  <div class="names"><span><code>abstraction</code><i>abstraction (추상화: 세부 사항을 감추고 공통 모양만 보여 줌)</i></span><span><code>driver</code><i>driver (장치를 직접 다루는 프로그램)</i></span></div>
+
+  <h3>ROS가 제공하는 것</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>구성</th><th>내용</th><th>이 자료에서</th></tr></thead>
+    <tbody>
+      <tr><td>통신</td><td>프로그램(노드) 사이의 Topic, Service, Action 통신. 아래에서 DDS가 실제 전송 담당</td><td>3, 7~9장</td></tr>
+      <tr><td>표준 메시지</td><td>센서 데이터, 속도 명령, 위치, 좌표 변환 등 자주 쓰는 데이터의 공통 형식</td><td>4, 7장</td></tr>
+      <tr><td>빌드와 실행 도구</td><td>패키지 생성, 빌드(colcon), 여러 프로그램 한꺼번에 실행(launch), 설정값(파라미터) 관리</td><td>6, 10장</td></tr>
+      <tr><td>개발 도구</td><td>명령줄 도구(<code>ros2</code>), 시각화(RViz2, rqt), 데이터 기록과 재생(bag)</td><td>4, 5장</td></tr>
+      <tr><td>로봇 공통 기능</td><td>로봇 모델(URDF), 좌표 변환(TF2), 그리고 그 위에서 동작하는 자율주행·로봇팔 동작 계획 같은 큰 패키지들</td><td>11 · 12장</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>배포판</h3>
+  <p>ROS 2는 Ubuntu처럼 이름이 붙은 <strong>배포판</strong>(distribution) 단위로 나옵니다. 배포판마다 짝이 되는 Ubuntu 버전이 정해져 있고, 짝이 맞지 않으면 apt로 설치할 수 없습니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>배포판</th><th>출시</th><th>Ubuntu</th><th>지원 종료</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Humble</strong> Hawksbill (LTS)</td><td class="num">2022.05</td><td>22.04</td><td class="num">2027.05</td></tr>
+      <tr><td>Jazzy Jalisco (LTS)</td><td class="num">2024.05</td><td>24.04</td><td class="num">2029.05</td></tr>
+    </tbody>
+  </table></div>
+  <p>LTS(Long Term Support) 배포판은 5년 동안 지원됩니다. 이 자료는 Ubuntu 22.04와 <strong>Humble</strong>을 기준으로 합니다. 명령어와 코드의 대부분은 다른 배포판에서도 같습니다.</p>
+  <div class="names"><span><code>LTS</code><i><b>L</b>ong <b>T</b>erm <b>S</b>upport</i></span><span><code>distro</code><i><b>distr</b>ibution (배포판)</i></span></div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>ROS는 Windows나 Ubuntu 같은 운영체제인가?</summary><div class="a"><p>아닙니다. Ubuntu 같은 운영체제 위에 설치해서 쓰는 로봇 소프트웨어 플랫폼입니다. 통신 미들웨어, 표준 메시지, 빌드·실행 도구, 개발 도구, 공개 패키지를 함께 제공합니다.</p></div></details>
+    <details class="q"><summary>라이다를 다른 회사 제품으로 바꿔도 장애물 인식 프로그램을 고치지 않아도 되는 이유는?</summary><div class="a"><p>드라이버가 장치마다 다른 부분을 감추고 표준 메시지(<code>sensor_msgs/LaserScan</code>)로 데이터를 내보내기 때문입니다. 장애물 인식 프로그램은 표준 메시지만 받으므로 드라이버만 바꾸면 됩니다.</p></div></details>
+    <details class="q"><summary>Ubuntu 22.04에 설치하는 ROS 2 LTS 배포판의 이름은?</summary><div class="a"><p>Humble Hawksbill(줄여서 Humble)입니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 2 ===================== -->
+<section class="lec" id="c2" data-num="2" data-group="Ⅰ. ROS 2 기본" data-title="설치 구조와 환경 설정">
+  <div class="manhead"><b>SETUP(1)</b><span>2장</span><span>Installation and Environment</span></div>
+  <h2>설치 구조와 환경 설정<small>/opt/ros/humble · setup.bash · source · 환경 변수 · underlay · overlay · ROS_DOMAIN_ID</small></h2>
+  <p class="lead">ROS 2를 설치해도 바로 <code>ros2</code> 명령이 동작하지는 않습니다. 설치된 파일이 어디에 있는지, 그리고 <code>source</code> 한 줄이 무엇을 바꾸는지 알면 "명령을 찾을 수 없음", "패키지를 찾을 수 없음" 같은 오류의 대부분을 스스로 해결할 수 있습니다.</p>
+
+  <h3>설치하면 어디에 무엇이 생기나</h3>
+  <p>공식 설치 문서(docs.ros.org의 <em>Ubuntu (deb packages)</em>)를 따라 apt로 설치하면, ROS 2의 모든 파일은 <code>/opt/ros/humble/</code> 한 곳에 들어갑니다. 리눅스 첫걸음 2장에서 본 것처럼 <code>/opt</code>는 추가로 설치하는 프로그램을 두는 곳입니다.</p>
+  <pre><span class="p">$ </span>ls /opt/ros/humble
+<span class="o">bin  include  lib  local  opt  setup.bash  setup.sh  setup.zsh  share  ...</span></pre>
+  <div class="tbl"><table>
+    <thead><tr><th>디렉터리</th><th>들어 있는 것</th></tr></thead>
+    <tbody>
+      <tr><td><code>bin/</code></td><td><code>ros2</code>, <code>rviz2</code> 같은 명령 (실행 파일)</td></tr>
+      <tr><td><code>lib/</code></td><td>패키지별 실행 파일(<code>lib/패키지/노드</code>), Python 모듈(<code>lib/python3.10/site-packages</code>), ROS 2 내부 라이브러리(<code>.so</code>)</td></tr>
+      <tr><td><code>share/</code></td><td>패키지별 설정, launch 파일, 메시지 정의, <code>package.xml</code></td></tr>
+      <tr><td><code>setup.bash</code></td><td>이 설치본을 쓸 수 있게 환경 변수를 설정하는 스크립트</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><b class="t">apt 패키지 이름 규칙</b>ROS 2용 apt 패키지는 <code>ros-배포판-패키지이름</code> 형식이고, 패키지 이름의 밑줄(<code>_</code>)은 하이픈(<code>-</code>)으로 바뀝니다. 예를 들어 <code>turtlesim</code>은 <code>ros-humble-turtlesim</code>, <code>tf2_tools</code>는 <code>ros-humble-tf2-tools</code>입니다. 데스크톱 전체(RViz2, rqt, 예제 포함)는 <code>ros-humble-desktop</code>입니다.</div>
+
+  <h3>source가 하는 일</h3>
+  <p>새 터미널에서 바로 <code>ros2</code>를 입력하면 셸이 명령을 찾지 못합니다. 셸은 <code>PATH</code> 환경 변수에 적힌 디렉터리에서만 명령을 찾는데(리눅스 첫걸음 8장), <code>/opt/ros/humble/bin</code>은 거기에 없기 때문입니다.</p>
+  <pre><span class="p">$ </span>ros2
+<span class="o">ros2: command not found</span>
+<span class="p">$ </span>source /opt/ros/humble/setup.bash
+<span class="p">$ </span>which ros2
+<span class="o">/opt/ros/humble/bin/ros2</span>
+<span class="p">$ </span>printenv | grep -E '^(ROS|AMENT)'       <span class="c"># ROS 관련 환경 변수만 보기</span>
+<span class="o">ROS_VERSION=2
+ROS_PYTHON_VERSION=3
+ROS_DISTRO=humble
+AMENT_PREFIX_PATH=/opt/ros/humble
+...</span></pre>
+  <p><code>setup.bash</code>는 여러 환경 변수에 ROS 2의 경로를 추가합니다. <code>source</code>로 실행하는 이유는, 일반 실행(<code>bash setup.bash</code>)은 자식 프로세스에서 돌기 때문에 거기서 바꾼 환경 변수가 지금 셸에 남지 않기 때문입니다(리눅스 첫걸음 8장).</p>
+  <div class="tbl"><table>
+    <thead><tr><th>환경 변수</th><th>추가되는 값의 예</th><th>쓰는 곳</th></tr></thead>
+    <tbody>
+      <tr><td><code>PATH</code></td><td><code>/opt/ros/humble/bin</code></td><td>셸이 <code>ros2</code>, <code>rviz2</code> 명령을 찾음</td></tr>
+      <tr><td><code>LD_LIBRARY_PATH</code></td><td><code>/opt/ros/humble/lib</code></td><td>rclpy가 내부에서 쓰는 ROS 2 공유 라이브러리(<code>.so</code>)를 찾음</td></tr>
+      <tr><td><code>PYTHONPATH</code></td><td><code>/opt/ros/humble/lib/python3.10/site-packages</code></td><td>Python이 <code>import rclpy</code>를 찾음</td></tr>
+      <tr><td><code>AMENT_PREFIX_PATH</code></td><td><code>/opt/ros/humble</code></td><td><code>ros2</code> 명령이 설치된 패키지 목록을 찾음</td></tr>
+      <tr><td><code>ROS_DISTRO</code></td><td><code>humble</code></td><td>지금 쓰는 배포판 이름</td></tr>
+    </tbody>
+  </table></div>
+  <div class="names"><span><code>source</code><i>현재 셸에서 스크립트 실행</i></span><span><code>LD_LIBRARY_PATH</code><i><b>L</b>oa<b>D</b>er library path</i></span><span><code>ament</code><i>ROS 2의 빌드 시스템 이름 (ament: 버드나무 꽃차례)</i></span></div>
+
+  <div class="warn"><b class="t">환경 변수는 터미널마다 따로</b>환경 변수는 그 셸(프로세스)에만 적용됩니다. 한 터미널에서 <code>source</code>했다고 다른 터미널까지 바뀌지 않으므로, ROS 2를 쓰는 터미널마다 환경이 불러와져 있어야 합니다. 또 한 터미널에서 서로 다른 배포판의 <code>setup.bash</code>를 둘 다 <code>source</code>하면 경로가 섞여 알 수 없는 오류가 납니다.</div>
+
+  <h3>underlay와 overlay</h3>
+  <p>6장에서는 직접 만든 패키지를 <strong>워크스페이스</strong>(예: <code>~/ros2_ws</code>)에서 빌드합니다. 빌드 결과도 <code>install/setup.bash</code>를 가지고 있어서, 이것을 <code>source</code>하면 내 패키지가 <code>ros2</code> 명령에 보이게 됩니다. 이때 두 설치본은 층을 이룹니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 170" role="img" aria-label="아래층 underlay인 /opt/ros/humble 위에 overlay인 내 워크스페이스가 겹쳐짐. 같은 패키지가 있으면 위층이 우선">
+        <rect class="bx-a" x="120" y="20" width="400" height="50" rx="5"/><text class="tb c" x="320" y="38">overlay: ~/ros2_ws/install</text><text class="ts c" x="320" y="57">내가 만든 패키지, 소스에서 직접 빌드한 패키지</text>
+        <rect class="bx" x="120" y="96" width="400" height="50" rx="5"/><text class="tb c" x="320" y="114">underlay: /opt/ros/humble</text><text class="ts c" x="320" y="133">apt로 설치한 ROS 2 기본 패키지</text>
+        <path class="ln" d="M60 140 L60 30"/><text class="ts c" x="60" y="156">먼저 찾음 ↑</text>
+        <text class="ts" x="534" y="50">나중에 source</text>
+        <text class="ts" x="534" y="126">먼저 source</text>
+      </svg>
+    </div>
+    <figcaption>나중에 <code>source</code>한 쪽(overlay)이 경로 목록의 앞에 붙습니다. 같은 이름의 패키지가 양쪽에 있으면 overlay의 것이 쓰입니다. 그래서 <code>/opt/ros/humble/setup.bash</code>를 먼저, 내 워크스페이스의 <code>install/setup.bash</code>를 나중에 불러옵니다.</figcaption>
+  </figure>
+  <div class="names"><span><code>underlay</code><i>under + lay (아래에 깔린 층)</i></span><span><code>overlay</code><i>over + lay (위에 덮는 층)</i></span></div>
+
+  <h3>ROS_DOMAIN_ID: 같은 네트워크에서 서로 섞이지 않게</h3>
+  <p>ROS 2는 같은 네트워크에 있는 노드를 자동으로 찾아 연결합니다(IPC 10장). 편리하지만, 동아리방이나 학교처럼 여러 사람이 같은 와이파이에서 ROS 2를 쓰면 <strong>남의 노드와 토픽까지 보이고 섞이는</strong> 문제가 생깁니다. 다른 사람이 보낸 속도 명령에 내 로봇이 움직일 수도 있습니다.</p>
+  <p><code>ROS_DOMAIN_ID</code>는 ROS 2 통신을 번호로 나누는 환경 변수입니다. DDS는 이 번호로 탐색과 통신에 쓸 UDP 포트 번호를 계산하므로, <strong>번호가 다르면 서로를 아예 발견하지 못합니다</strong>. 설정하지 않으면 0입니다.</p>
+  <pre><span class="p">$ </span>export ROS_DOMAIN_ID=7          <span class="c"># 0~101 사이에서 팀이나 사람마다 다른 번호를 정함</span>
+<span class="p">$ </span>echo $ROS_DOMAIN_ID
+<span class="o">7</span></pre>
+  <div class="warn"><b class="t">통신이 안 될 때 먼저 볼 것</b>두 터미널(또는 두 컴퓨터)에서 노드끼리 연결되지 않으면 양쪽의 <code>echo $ROS_DOMAIN_ID</code>부터 확인합니다. 한쪽 터미널에서만 설정한 경우가 흔합니다. 반대로 내 컴퓨터 안에서만 통신하고 싶다면 <code>export ROS_LOCALHOST_ONLY=1</code>로 다른 컴퓨터와의 통신을 막을 수 있습니다.</div>
+  <div class="names"><span><code>domain</code><i>domain (영역)</i></span><span><code>ROS_LOCALHOST_ONLY</code><i>localhost(127.0.0.1)로만 통신</i></span></div>
+
+  <h3>설치 확인</h3>
+  <p>설치가 끝나면 두 터미널에서 예제 노드를 실행해 통신이 되는지 확인합니다. IPC 10장의 talker/listener와 같은 동작을 하는, ROS 2에 들어 있는 예제입니다.</p>
+  <pre><span class="c"># 터미널 1</span>
+<span class="p">$ </span>ros2 run demo_nodes_py talker
+<span class="o">[INFO] [1735278891.364182823] [talker]: Publishing: "Hello World: 1"
+[INFO] [1735278892.364424660] [talker]: Publishing: "Hello World: 2"</span>
+<span class="c"># 터미널 2</span>
+<span class="p">$ </span>ros2 run demo_nodes_py listener
+<span class="o">[INFO] [1735278892.365681075] [listener]: I heard: [Hello World: 2]</span></pre>
+  <p>두 노드는 서로 다른 터미널(다른 프로세스)에서 실행되지만, 같은 이름(<code>chatter</code>)의 토픽으로 연결되어 데이터가 오갑니다. 설치 상태 전체를 점검하고 싶으면 <code>ros2 doctor</code>를 실행합니다.</p>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>apt로 설치한 ROS 2 Humble의 파일은 어디에 있나?</summary><div class="a"><p><code>/opt/ros/humble/</code> 아래에 있습니다. 명령은 <code>bin/</code>, 라이브러리와 실행 파일은 <code>lib/</code>, 설정과 메시지 정의는 <code>share/</code>에 있습니다.</p></div></details>
+    <details class="q"><summary><code>source /opt/ros/humble/setup.bash</code>를 하지 않은 터미널에서 <code>ros2</code>가 "command not found"인 이유는?</summary><div class="a"><p><code>PATH</code>에 <code>/opt/ros/humble/bin</code>이 없어서 셸이 <code>ros2</code> 실행 파일을 찾지 못하기 때문입니다. <code>setup.bash</code>가 <code>PATH</code>를 포함한 여러 환경 변수에 ROS 2 경로를 추가합니다.</p></div></details>
+    <details class="q"><summary><code>setup.bash</code>를 <code>bash setup.bash</code>로 실행하면 왜 효과가 없나?</summary><div class="a"><p><code>bash</code>로 실행하면 새 자식 셸에서 실행되고, 그 셸이 끝나면서 바꾼 환경 변수도 사라집니다. 지금 셸의 환경을 바꾸려면 <code>source</code>로 현재 셸에서 실행해야 합니다.</p></div></details>
+    <details class="q"><summary><code>/opt/ros/humble/setup.bash</code>와 <code>~/ros2_ws/install/setup.bash</code> 중 무엇을 먼저 source해야 하나?</summary><div class="a"><p><code>/opt/ros/humble/setup.bash</code>(underlay)를 먼저, 내 워크스페이스(overlay)를 나중에 source합니다. 나중에 source한 쪽이 우선하므로 내 패키지가 기본 패키지보다 먼저 쓰입니다.</p></div></details>
+    <details class="q"><summary>옆 사람과 같은 와이파이에서 turtlesim을 켰더니 옆 사람의 키보드 입력에 내 거북이가 움직인다. 해결 방법은?</summary><div class="a"><p>서로 다른 <code>ROS_DOMAIN_ID</code>를 설정합니다. 도메인 번호가 다르면 DDS가 서로를 발견하지 못하므로 통신이 분리됩니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 3 ===================== -->
+<section class="lec" id="c3" data-num="3" data-group="Ⅰ. ROS 2 기본" data-title="ROS 2 그래프">
+  <div class="manhead"><b>GRAPH(7)</b><span>3장</span><span>The ROS 2 Graph</span></div>
+  <h2>ROS 2 그래프: 노드와 통신<small>node · message · topic · service · action · parameter · 이름과 네임스페이스 · turtlesim</small></h2>
+  <p class="lead">ROS 2 시스템은 여러 개의 <strong>노드</strong>와, 노드 사이를 잇는 <strong>통신</strong>으로 이루어집니다. 이 연결 전체를 <strong>ROS 그래프</strong>라고 부릅니다. 이 장에서는 그래프를 이루는 구성 요소를 한꺼번에 훑어보고, 4장부터 하나씩 자세히 봅니다.</p>
+
+  <h3>노드: 실행의 최소 단위</h3>
+  <p><strong>노드</strong>(node)는 한 가지 일을 맡는 실행 단위입니다. 카메라 영상을 내보내는 노드, 위치를 추정하는 노드, 모터에 명령을 보내는 노드처럼 기능별로 나눕니다. 보통 노드 하나가 프로세스 하나이고(한 프로세스에 노드 여럿을 넣을 수도 있습니다), IPC 자료 3장에서 본 "로봇 소프트웨어를 여러 프로세스로 나누는 이유"가 그대로 노드를 나누는 이유입니다.</p>
+  <div class="names"><span><code>node</code><i>node (그래프의 꼭짓점, 마디)</i></span></div>
+
+  <h3>노드끼리 주고받는 방법 세 가지</h3>
+  <p>노드끼리는 <strong>메시지</strong>(message)를 주고받습니다. 메시지는 미리 형식이 정해진 데이터 묶음입니다. 메시지를 주고받는 방식은 세 가지입니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 362" role="img" aria-label="Topic은 발행자에서 구독자들로 한 방향, Service는 클라이언트의 요청과 서버의 응답, Action은 목표 요청 뒤 중간 피드백과 최종 결과">
+        <text class="tb" x="20" y="22">Topic</text><text class="ts" x="80" y="22">계속 흘려보내기 · 한 방향 · 1:N</text>
+        <rect class="bx" x="20" y="36" width="130" height="40" rx="4"/><text class="t c" x="85" y="56">발행자 노드</text>
+        <rect class="bx-a" x="250" y="40" width="120" height="32" rx="16"/><text class="tb tm c" x="310" y="56">/scan</text>
+        <rect class="bx" x="470" y="30" width="150" height="26" rx="4"/><text class="ts c" x="545" y="43">구독자 노드 1</text>
+        <rect class="bx" x="470" y="62" width="150" height="26" rx="4"/><text class="ts c" x="545" y="75">구독자 노드 2</text>
+        <path class="ln-a" d="M150 56 L246 56"/><text class="ts ta c" x="198" y="46">메시지</text>
+        <path class="ln" d="M370 56 L466 43"/><path class="ln" d="M370 56 L466 75"/>
+
+        <text class="tb" x="20" y="128">Service</text><text class="ts" x="90" y="128">한 번 묻고 한 번 답 듣기 · 양방향</text>
+        <rect class="bx" x="20" y="140" width="130" height="62" rx="4"/><text class="t c" x="85" y="171">클라이언트 노드</text>
+        <rect class="bx" x="470" y="140" width="150" height="62" rx="4"/><text class="t c" x="545" y="171">서버 노드</text>
+        <path class="ln-a" d="M150 164 L466 164"/><text class="ts ta c" x="310" y="150">① 요청 (request)</text>
+        <path class="ln" d="M470 190 L154 190"/><text class="ts c" x="310" y="204">② 응답 (response)</text>
+
+        <text class="tb" x="20" y="240">Action</text><text class="ts" x="86" y="240">오래 걸리는 일 맡기기 · 중간 보고 · 취소 가능</text>
+        <rect class="bx" x="20" y="254" width="130" height="98" rx="4"/><text class="t c" x="85" y="303">액션 클라이언트</text>
+        <rect class="bx" x="470" y="254" width="150" height="98" rx="4"/><text class="t c" x="545" y="303">액션 서버</text>
+        <path class="ln-a" d="M150 280 L466 280"/><text class="ts ta c" x="310" y="266">① 목표 (goal)</text>
+        <path class="ln-ok" d="M470 310 L154 310"/><text class="ts tok c" x="310" y="296">② 피드백 (feedback) … 여러 번</text>
+        <path class="ln" d="M470 340 L154 340"/><text class="ts c" x="310" y="326">③ 결과 (result)</text>
+      </svg>
+    </div>
+    <figcaption>ROS 2의 세 가지 통신 방식. Topic은 데이터를 계속 흘려보내고, Service는 요청 한 번에 응답 한 번을 받으며, Action은 목표를 맡긴 뒤 진행 상황을 계속 보고받다가 마지막에 결과를 받습니다.</figcaption>
+  </figure>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>Topic</th><th>Service</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td>비유</td><td>라디오 방송</td><td>전화로 질문하기</td><td>배달 주문 (주문 → 배달 현황 → 도착)</td></tr>
+      <tr><td>방향</td><td>한 방향</td><td>양방향 (요청 → 응답)</td><td>양방향 + 중간 보고</td></tr>
+      <tr><td>연결</td><td>1:1, 1:N, N:N</td><td>서버 하나에 클라이언트 여럿</td><td>서버 하나에 클라이언트 여럿</td></tr>
+      <tr><td>언제 끝나나</td><td>끝이 없음 (계속 발행)</td><td>응답을 받으면 끝</td><td>결과를 받거나 취소하면 끝</td></tr>
+      <tr><td>예</td><td>센서 데이터, 속도 명령, 로봇 위치</td><td>설정 바꾸기, 지도 저장, 계산 요청</td><td>목표 지점까지 이동, 로봇팔로 물체 집기</td></tr>
+      <tr><td>자세히</td><td>7장</td><td>8장</td><td>9장</td></tr>
+    </tbody>
+  </table></div>
+  <p>여기에 노드마다 가지고 있는 설정값인 <strong>파라미터</strong>(parameter)가 더해집니다. 예를 들어 카메라 노드의 해상도, 제어 노드의 최대 속도 같은 값입니다. 코드를 고치지 않고 실행할 때 값을 바꿀 수 있습니다(10장).</p>
+  <div class="names"><span><code>publish</code><i>publish (발행하다)</i></span><span><code>subscribe</code><i>subscribe (구독하다)</i></span><span><code>request / response</code><i>요청 / 응답</i></span><span><code>goal / feedback / result</code><i>목표 / 중간 보고 / 결과</i></span></div>
+
+  <h3>turtlesim으로 보는 ROS 그래프</h3>
+  <p><strong>turtlesim</strong>은 ROS 학습용으로 만든 아주 작은 시뮬레이터입니다. 창 안의 거북이가 로봇 역할을 합니다. 노드 두 개를 실행해 봅니다.</p>
+  <pre><span class="c"># 터미널 1: 거북이 시뮬레이터 노드</span>
+<span class="p">$ </span>ros2 run turtlesim turtlesim_node
+<span class="c"># 터미널 2: 키보드 입력을 속도 명령으로 바꾸는 노드</span>
+<span class="p">$ </span>ros2 run turtlesim turtle_teleop_key
+<span class="o">Reading from keyboard
+---------------------------
+Use arrow keys to move the turtle.
+Use G|B|V|C|D|E|R|T keys to rotate to absolute orientations. 'F' to cancel a rotation.
+'Q' to quit.</span></pre>
+  <p>터미널 2를 클릭한 상태에서 방향키를 누르면 거북이가 움직입니다. 이때 두 노드 사이에서 일어나는 일을 그림으로 그리면 다음과 같습니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 210" role="img" aria-label="teleop_turtle 노드가 /turtle1/cmd_vel 토픽으로 속도를 발행하고 turtlesim 노드가 구독. turtlesim은 /turtle1/pose 토픽을 발행하고, 서비스와 액션 서버도 제공">
+        <rect class="bx" x="20" y="60" width="150" height="56" rx="5"/><text class="tb c" x="95" y="80">/teleop_turtle</text><text class="ts c" x="95" y="99">키보드 → 속도 명령</text>
+        <rect class="bx-a" x="210" y="70" width="170" height="36" rx="18"/><text class="tb tm c" x="295" y="88">/turtle1/cmd_vel</text>
+        <rect class="bx" x="420" y="50" width="200" height="76" rx="5"/><text class="tb c" x="520" y="72">/turtlesim</text><text class="ts c" x="520" y="92">속도 명령대로 거북이를 움직임</text><text class="ts c" x="520" y="110">위치를 계속 알려 줌</text>
+        <path class="ln-a" d="M170 88 L206 88"/><path class="ln-a" d="M380 88 L416 88"/>
+        <rect class="bx-mute" x="420" y="150" width="200" height="30" rx="15"/><text class="ts tm c" x="520" y="165">/turtle1/pose</text>
+        <path class="ln" d="M520 126 L520 146"/>
+        <text class="ts" x="20" y="150">Topic: 거북이 위치 (발행만 하고 아직 받는 노드 없음)</text>
+        <text class="ts" x="20" y="172">Service: /spawn, /clear, /turtle1/set_pen …</text>
+        <text class="ts" x="20" y="194">Action: /turtle1/rotate_absolute</text>
+        <text class="ts c" x="295" y="54">Topic: 속도 명령</text>
+      </svg>
+    </div>
+    <figcaption><code>turtle_teleop_key</code>를 실행하면 <code>/teleop_turtle</code>이라는 노드가 생기고, 키를 누를 때마다 <code>/turtle1/cmd_vel</code> 토픽에 속도 메시지를 발행합니다. <code>/turtlesim</code> 노드는 그 토픽을 구독해 거북이를 움직입니다. 두 노드는 서로를 직접 알지 못하고 토픽 이름으로만 연결됩니다.</figcaption>
+  </figure>
+  <div class="names"><span><code>teleop</code><i><b>tele</b>operation (원격 조종)</i></span><span><code>cmd_vel</code><i><b>c</b>o<b>m</b>man<b>d</b> <b>vel</b>ocity (속도 명령)</i></span><span><code>pose</code><i>pose (위치 + 방향, 자세)</i></span></div>
+  <p>키보드 노드 대신 내가 만든 자율주행 노드가 같은 <code>/turtle1/cmd_vel</code>에 발행하면, turtlesim 쪽 코드는 하나도 고치지 않아도 거북이가 내 노드의 명령대로 움직입니다. 실제 로봇에서도 마찬가지로, 모터 드라이버 노드는 <code>/cmd_vel</code>만 구독하고 그 명령을 사람이 보냈는지 자율주행 알고리즘이 보냈는지는 신경 쓰지 않습니다.</p>
+
+  <h3>이름 규칙과 네임스페이스</h3>
+  <p>노드, 토픽, 서비스, 액션은 모두 파일 경로처럼 <code>/</code>로 구분된 <strong>이름</strong>을 가집니다. 앞부분은 무리를 나누는 <strong>네임스페이스</strong>(namespace)입니다. <code>/turtle1/cmd_vel</code>은 <code>turtle1</code> 네임스페이스 안의 <code>cmd_vel</code>입니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>코드에 쓴 이름</th><th>노드의 네임스페이스</th><th>실제 이름</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>cmd_vel</code></td><td><code>/</code></td><td><code>/cmd_vel</code></td><td>상대 이름: 노드의 네임스페이스 뒤에 붙음</td></tr>
+      <tr><td><code>cmd_vel</code></td><td><code>/robot2</code></td><td><code>/robot2/cmd_vel</code></td><td>같은 코드를 네임스페이스만 바꿔 여러 대 실행 가능</td></tr>
+      <tr><td><code>/cmd_vel</code></td><td><code>/robot2</code></td><td><code>/cmd_vel</code></td><td>절대 이름: <code>/</code>로 시작하면 네임스페이스 무시</td></tr>
+      <tr><td><code>~/status</code></td><td><code>/robot2</code> (노드 이름 <code>driver</code>)</td><td><code>/robot2/driver/status</code></td><td>개인 이름: 노드 이름 아래에 붙음</td></tr>
+    </tbody>
+  </table></div>
+  <p>로봇 두 대를 한 네트워크에서 움직일 때, 코드에는 상대 이름(<code>cmd_vel</code>)을 쓰고 실행할 때 네임스페이스를 <code>robot1</code>, <code>robot2</code>로 나누면 같은 코드로 서로 다른 토픽을 쓰게 됩니다. 네임스페이스를 실행할 때 정하는 방법은 10장에서 봅니다.</p>
+  <div class="note"><b class="t">리눅스 경로와 비교</b>리눅스 첫걸음 2장의 절대 경로(<code>/home/user</code>)와 상대 경로(<code>docs</code>)와 같은 원리입니다. 다만 ROS 이름에는 <code>..</code> 같은 위로 올라가는 표기가 없습니다.</div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>ROS 2에서 "노드"란 무엇인가?</summary><div class="a"><p>한 가지 기능을 맡는 실행 단위입니다. 보통 프로세스 하나가 노드 하나이며, 노드끼리 Topic, Service, Action으로 메시지를 주고받습니다.</p></div></details>
+    <details class="q"><summary>로봇의 현재 속도를 초당 50번 다른 노드들에게 알려야 한다. 어떤 통신 방식이 알맞나?</summary><div class="a"><p>Topic입니다. 끝없이 계속 흘러가는 데이터이고, 여러 노드가 동시에 받을 수 있어야 하기 때문입니다.</p></div></details>
+    <details class="q"><summary>"지도 저장해 줘"와 "부엌까지 가 줘" 중 Action이 더 알맞은 것은? 이유는?</summary><div class="a"><p>"부엌까지 가 줘"입니다. 오래 걸리는 일이라 이동 중에 남은 거리 같은 중간 보고가 필요하고, 도중에 취소할 수도 있어야 하기 때문입니다. 지도 저장처럼 금방 끝나는 일은 Service로 충분합니다.</p></div></details>
+    <details class="q"><summary><code>turtle_teleop_key</code> 노드와 <code>turtlesim_node</code> 노드는 무엇으로 연결되나?</summary><div class="a"><p><code>/turtle1/cmd_vel</code>이라는 토픽 이름으로 연결됩니다. 키보드 노드가 그 토픽에 속도 메시지를 발행하고, turtlesim 노드가 구독합니다.</p></div></details>
+    <details class="q"><summary>네임스페이스가 <code>/robot2</code>인 노드가 코드에서 <code>odom</code>이라는 토픽을 발행하면 실제 토픽 이름은? <code>/odom</code>이라고 썼다면?</summary><div class="a"><p><code>odom</code>은 상대 이름이므로 <code>/robot2/odom</code>이 됩니다. <code>/odom</code>은 절대 이름이므로 네임스페이스와 상관없이 <code>/odom</code>입니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 4 ===================== -->
+<section class="lec" id="c4" data-num="4" data-group="Ⅱ. 시스템 들여다보기" data-title="ros2 명령어">
+  <div class="manhead"><b>ROS2(1)</b><span>4장</span><span>The ros2 Command Line</span></div>
+  <h2>ros2 명령으로 시스템 들여다보기<small>ros2 run · node · topic · interface · service · action · param</small></h2>
+  <p class="lead">ROS 2는 실행 중인 시스템을 바깥에서 들여다보고 조작하는 명령줄 도구 <code>ros2</code>를 제공합니다. 코드를 한 줄도 쓰지 않고도 어떤 노드가 떠 있는지, 어떤 데이터가 오가는지 확인하고, 직접 메시지를 보내 볼 수 있습니다. 문제를 찾을 때 가장 먼저 쓰는 도구입니다.</p>
+
+  <h3>명령의 형식</h3>
+  <div class="syn"><span class="usage">$ ros2 &lt;하위 명령&gt; &lt;동작&gt; [대상] [옵션]</span><span class="desc">예: <code>ros2 topic echo /turtle1/pose</code>는 "topic에 대해, echo(출력) 동작을, <code>/turtle1/pose</code>에" 수행합니다.</span></div>
+  <div class="tbl"><table>
+    <thead><tr><th>하위 명령</th><th>대상</th><th>주로 쓰는 동작</th></tr></thead>
+    <tbody>
+      <tr><td><code>run</code></td><td>노드 하나 실행</td><td><code>ros2 run 패키지 실행파일</code></td></tr>
+      <tr><td><code>launch</code></td><td>여러 노드를 한꺼번에 실행 (10장)</td><td><code>ros2 launch 패키지 launch파일</code></td></tr>
+      <tr><td><code>pkg</code></td><td>패키지</td><td><code>list</code>, <code>create</code>(6장), <code>executables</code>, <code>prefix</code></td></tr>
+      <tr><td><code>node</code></td><td>실행 중인 노드</td><td><code>list</code>, <code>info</code></td></tr>
+      <tr><td><code>topic</code></td><td>토픽</td><td><code>list</code>, <code>info</code>, <code>echo</code>, <code>hz</code>, <code>pub</code></td></tr>
+      <tr><td><code>interface</code></td><td>메시지·서비스·액션의 형식</td><td><code>list</code>, <code>show</code>, <code>package</code></td></tr>
+      <tr><td><code>service</code></td><td>서비스</td><td><code>list</code>, <code>type</code>, <code>call</code></td></tr>
+      <tr><td><code>action</code></td><td>액션</td><td><code>list</code>, <code>info</code>, <code>send_goal</code></td></tr>
+      <tr><td><code>param</code></td><td>노드의 파라미터</td><td><code>list</code>, <code>get</code>, <code>set</code>, <code>dump</code></td></tr>
+      <tr><td><code>bag</code></td><td>토픽 기록과 재생 (5장)</td><td><code>record</code>, <code>info</code>, <code>play</code></td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><b class="t">Tab과 -h</b>모든 단계에서 <kbd>Tab</kbd> 자동 완성이 됩니다. <code>ros2 topic echo /tu</code>까지 쓰고 <kbd>Tab</kbd>을 누르면 실행 중인 토픽 이름이 채워지고, 메시지 형식까지 채워 줍니다. 두 번 누르면 후보 목록이 나옵니다. 옵션이 궁금하면 <code>ros2 topic pub -h</code>처럼 <code>-h</code>를 붙입니다.</div>
+  <p>이 장의 예시는 모두 3장처럼 <code>turtlesim_node</code>와 <code>turtle_teleop_key</code>를 실행해 둔 상태에서 세 번째 터미널에 입력합니다.</p>
+
+  <h3>노드 실행과 확인: run, node</h3>
+  <div class="syn"><span class="usage">$ ros2 run &lt;패키지&gt; &lt;실행 파일&gt;</span><span class="desc">패키지 안의 실행 파일 하나를 실행합니다. 패키지에 어떤 실행 파일이 있는지는 <code>ros2 pkg executables 패키지</code>로 봅니다. 끌 때는 <kbd>Ctrl</kbd>+<kbd>C</kbd>(SIGINT, 리눅스 첫걸음 9장)입니다.</span></div>
+  <pre><span class="p">$ </span>ros2 pkg executables turtlesim
+<span class="o">turtlesim draw_square
+turtlesim mimic
+turtlesim turtle_teleop_key
+turtlesim turtlesim_node</span>
+<span class="p">$ </span>ros2 node list
+<span class="o">/teleop_turtle
+/turtlesim</span>
+<span class="p">$ </span>ros2 node info /turtlesim
+<span class="o">/turtlesim
+  Subscribers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /turtle1/cmd_vel: geometry_msgs/msg/Twist
+  Publishers:
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+    /turtle1/color_sensor: turtlesim/msg/Color
+    /turtle1/pose: turtlesim/msg/Pose
+  Service Servers:
+    /clear: std_srvs/srv/Empty
+    /kill: turtlesim/srv/Kill
+    /reset: std_srvs/srv/Empty
+    /spawn: turtlesim/srv/Spawn
+    /turtle1/set_pen: turtlesim/srv/SetPen
+    ...
+  Service Clients:
+
+  Action Servers:
+    /turtle1/rotate_absolute: turtlesim/action/RotateAbsolute
+  Action Clients:
+</span></pre>
+  <p><code>node info</code>는 그 노드가 <strong>무엇을 받고(Subscribers), 무엇을 내보내고(Publishers), 어떤 서비스와 액션을 제공하는지</strong>를 한 번에 보여 줍니다. 처음 보는 노드를 이해할 때 가장 먼저 볼 정보입니다. 실행 파일 이름(<code>turtlesim_node</code>)과 노드 이름(<code>/turtlesim</code>)은 다를 수 있다는 점도 기억해 둡니다.</p>
+  <div class="note"><b class="t">모든 노드에 있는 것들</b><code>/parameter_events</code>(파라미터 변경 알림)와 <code>/rosout</code>(로그 모음, 5장)은 ROS 2가 모든 노드에 자동으로 만들어 주는 토픽입니다. <code>describe_parameters</code>, <code>get_parameters</code> 같은 서비스도 마찬가지로 파라미터를 바깥에서 읽고 쓰기 위해 자동으로 생깁니다(<code>...</code>로 줄인 부분).</div>
+
+  <h3>메시지의 형식: interface</h3>
+  <p>토픽, 서비스, 액션으로 오가는 데이터의 형식을 통틀어 <strong>인터페이스</strong>(interface)라고 합니다. 형식 이름은 <code>패키지/종류/이름</code>입니다.</p>
+  <figure class="fig"><div class="cv"><div class="anat">
+    <div class="seg"><code>geometry_msgs</code><span>패키지</span></div>
+    <div class="seg sep"><code>/</code><span></span></div>
+    <div class="seg"><code>msg</code><span>종류: msg · srv · action</span></div>
+    <div class="seg sep"><code>/</code><span></span></div>
+    <div class="seg"><code>Twist</code><span>형식 이름</span></div>
+  </div></div></figure>
+  <pre><span class="p">$ </span>ros2 interface show geometry_msgs/msg/Twist
+<span class="o"># This expresses velocity in free space broken into its linear and angular parts.
+
+Vector3  linear
+	float64 x
+	float64 y
+	float64 z
+Vector3  angular
+	float64 x
+	float64 y
+	float64 z</span></pre>
+  <p><code>Twist</code>는 <strong>직선 속도</strong>(linear, m/s) 3개와 <strong>회전 속도</strong>(angular, rad/s) 3개로 이루어집니다. 바닥을 달리는 로봇은 이 중 <code>linear.x</code>(앞으로)와 <code>angular.z</code>(제자리 회전) 두 값만 씁니다. 형식 안에 다른 형식(<code>Vector3</code>)이 들어갈 수 있다는 것도 보입니다.</p>
+  <pre><span class="p">$ </span>ros2 interface show turtlesim/msg/Pose
+<span class="o">float32 x
+float32 y
+float32 theta
+float32 linear_velocity
+float32 angular_velocity</span>
+<span class="p">$ </span>ros2 interface list | grep turtlesim       <span class="c"># 설치된 모든 형식 중 turtlesim 것만</span>
+<span class="o">    turtlesim/action/RotateAbsolute
+    turtlesim/msg/Color
+    turtlesim/msg/Pose
+    turtlesim/srv/Kill
+    ...</span></pre>
+  <div class="names"><span><code>interface</code><i>interface (접점, 주고받는 약속)</i></span><span><code>Twist</code><i>twist (비틀다 → 직선+회전 운동)</i></span><span><code>theta</code><i>θ (방향 각도, 라디안)</i></span></div>
+
+  <h3>토픽: topic</h3>
+  <pre><span class="p">$ </span>ros2 topic list -t                      <span class="c"># -t: 형식(type)도 함께</span>
+<span class="o">/parameter_events [rcl_interfaces/msg/ParameterEvent]
+/rosout [rcl_interfaces/msg/Log]
+/turtle1/cmd_vel [geometry_msgs/msg/Twist]
+/turtle1/color_sensor [turtlesim/msg/Color]
+/turtle1/pose [turtlesim/msg/Pose]</span>
+<span class="p">$ </span>ros2 topic info /turtle1/cmd_vel
+<span class="o">Type: geometry_msgs/msg/Twist
+Publisher count: 1
+Subscription count: 1</span>
+<span class="p">$ </span>ros2 topic echo /turtle1/pose           <span class="c"># 오는 메시지를 계속 출력 (Ctrl+C로 종료)</span>
+<span class="o">x: 5.544444561004639
+y: 5.544444561004639
+theta: 0.0
+linear_velocity: 0.0
+angular_velocity: 0.0
+---</span>
+<span class="p">$ </span>ros2 topic hz /turtle1/pose             <span class="c"># 초당 몇 번 발행되는지</span>
+<span class="o">average rate: 62.502
+	min: 0.015s max: 0.017s std dev: 0.00041s window: 64</span></pre>
+  <div class="tbl"><table>
+    <thead><tr><th>동작</th><th>원래 이름</th><th>보여 주는 것</th><th>이럴 때 씀</th></tr></thead>
+    <tbody>
+      <tr><td><code>list</code></td><td class="onm">list</td><td>지금 있는 토픽 이름</td><td>토픽 이름을 정확히 모를 때</td></tr>
+      <tr><td><code>info</code></td><td class="onm"><b>info</b>rmation</td><td>형식, 발행자·구독자 수</td><td>구독자 수가 0이면 아무도 안 받는 중, 발행자 수가 0이면 아무도 안 보내는 중</td></tr>
+      <tr><td><code>echo</code></td><td class="onm">echo (메아리)</td><td>메시지 내용</td><td>값이 제대로 나오는지 눈으로 확인</td></tr>
+      <tr><td><code>hz</code></td><td class="onm"><b>h</b>ert<b>z</b></td><td>발행 주기</td><td>센서가 기대한 속도(예: 10Hz)로 나오는지</td></tr>
+      <tr><td><code>bw</code></td><td class="onm"><b>b</b>and<b>w</b>idth</td><td>초당 데이터 양</td><td>영상처럼 큰 데이터가 네트워크를 얼마나 쓰는지</td></tr>
+      <tr><td><code>pub</code></td><td class="onm"><b>pub</b>lish</td><td>직접 메시지 발행</td><td>구독하는 노드를 혼자 시험해 볼 때</td></tr>
+    </tbody>
+  </table></div>
+  <p><code>topic pub</code>은 메시지 내용을 YAML 형식(<code>{필드: 값}</code>)으로 적습니다. 기본으로 1초에 한 번씩 계속 발행하고, <code>--once</code>는 한 번만, <code>--rate 10</code>은 초당 10번 발행합니다.</p>
+  <pre><span class="p">$ </span>ros2 topic pub --rate 1 /turtle1/cmd_vel geometry_msgs/msg/Twist \
+    "{linear: {x: 2.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 1.8}}"
+<span class="o">publisher: beginning loop
+publishing #1: geometry_msgs.msg.Twist(linear=geometry_msgs.msg.Vector3(x=2.0, y=0.0, z=0.0), angular=...)</span>
+<span class="c"># 거북이가 앞으로 가면서 회전 → 원을 그림</span></pre>
+  <div class="warn"><b class="t">숫자의 형식</b><code>float64</code> 필드에는 <code>2.0</code>처럼 소수점을 붙이는 습관을 들이세요. 대부분 정수도 받아 주지만, 정수 필드에 <code>2.0</code>을 넣거나 문자열 필드에 따옴표를 빠뜨리면 오류가 납니다. 따옴표 안의 모양이 헷갈리면 메시지 형식까지 쓴 뒤 <kbd>Tab</kbd>을 누르면 기본값으로 채워진 틀이 나옵니다.</div>
+
+  <h3>서비스: service</h3>
+  <pre><span class="p">$ </span>ros2 service list -t
+<span class="o">/clear [std_srvs/srv/Empty]
+/kill [turtlesim/srv/Kill]
+/reset [std_srvs/srv/Empty]
+/spawn [turtlesim/srv/Spawn]
+/turtle1/set_pen [turtlesim/srv/SetPen]
+/turtle1/teleport_absolute [turtlesim/srv/TeleportAbsolute]
+...</span>
+<span class="p">$ </span>ros2 interface show turtlesim/srv/SetPen
+<span class="o">uint8 r
+uint8 g
+uint8 b
+uint8 width
+uint8 off
+---</span></pre>
+  <p>서비스 형식은 <code>---</code>을 기준으로 위가 <strong>요청</strong>, 아래가 <strong>응답</strong>입니다. <code>SetPen</code>은 응답 부분이 비어 있습니다. "해 달라"고만 하고 돌려받을 값은 없는 서비스입니다.</p>
+  <pre><span class="p">$ </span>ros2 service call /turtle1/set_pen turtlesim/srv/SetPen "{r: 255, g: 0, b: 0, width: 5}"
+<span class="o">requester: making request: turtlesim.srv.SetPen_Request(r=255, g=0, b=0, width=5, off=0)
+
+response:
+turtlesim.srv.SetPen_Response()</span>
+<span class="c"># 이제부터 거북이가 지나간 자리가 빨간 굵은 선으로 그려짐</span>
+<span class="p">$ </span>ros2 service call /spawn turtlesim/srv/Spawn "{x: 2.0, y: 2.0, theta: 0.0, name: ''}"
+<span class="o">response:
+turtlesim.srv.Spawn_Response(name='turtle2')</span>     <span class="c"># 거북이가 한 마리 더 생기고, 붙은 이름이 응답으로 옴</span></pre>
+  <p>새 거북이가 생기면 <code>ros2 topic list</code>에 <code>/turtle2/cmd_vel</code>과 <code>/turtle2/pose</code>가 새로 나타납니다. 같은 노드 안에서 네임스페이스만 다른 토픽이 생긴 것입니다.</p>
+
+  <h3>액션: action</h3>
+  <pre><span class="p">$ </span>ros2 action list -t
+<span class="o">/turtle1/rotate_absolute [turtlesim/action/RotateAbsolute]</span>
+<span class="p">$ </span>ros2 action info /turtle1/rotate_absolute
+<span class="o">Action: /turtle1/rotate_absolute
+Action clients: 1
+    /teleop_turtle
+Action servers: 1
+    /turtlesim</span>
+<span class="p">$ </span>ros2 interface show turtlesim/action/RotateAbsolute
+<span class="o"># The desired heading in radians
+float32 theta
+---
+# The angular displacement in radians to the starting position
+float32 delta
+---
+# The remaining rotation in radians
+float32 remaining</span></pre>
+  <p>액션 형식은 <code>---</code>로 세 부분으로 나뉩니다. 위에서부터 <strong>목표</strong>(goal), <strong>결과</strong>(result), <strong>피드백</strong>(feedback)입니다. 키보드 노드에서 <kbd>G</kbd>, <kbd>R</kbd> 같은 키로 거북이를 특정 방향으로 돌리는 기능이 바로 이 액션의 클라이언트입니다.</p>
+  <pre><span class="p">$ </span>ros2 action send_goal --feedback /turtle1/rotate_absolute turtlesim/action/RotateAbsolute "{theta: 1.57}"
+<span class="o">Waiting for an action server to become available...
+Sending goal:
+     theta: 1.57
+
+Goal accepted with ID: f8db8f44410849eaa93d3feb747dd444
+
+Feedback:
+    remaining: -1.5520002841949463
+
+Feedback:
+    remaining: -1.5200002193450928
+...
+Result:
+    delta: -1.5520000457763672
+
+Goal finished with status: SUCCEEDED</span></pre>
+  <p>목표가 <strong>수락</strong>되고(accepted), 도는 동안 남은 각도가 <strong>피드백</strong>으로 계속 오고, 다 돌면 <strong>결과</strong>와 최종 <strong>상태</strong>(SUCCEEDED)가 옵니다. 3장 그림의 ①②③ 순서 그대로입니다.</p>
+
+  <h3>파라미터: param</h3>
+  <pre><span class="p">$ </span>ros2 param list /turtlesim
+<span class="o">  background_b
+  background_g
+  background_r
+  ...
+  use_sim_time</span>
+<span class="p">$ </span>ros2 param get /turtlesim background_b
+<span class="o">Integer value is: 255</span>
+<span class="p">$ </span>ros2 param set /turtlesim background_r 150
+<span class="o">Set parameter successful</span>           <span class="c"># 배경색이 바로 바뀜</span>
+<span class="p">$ </span>ros2 param dump /turtlesim          <span class="c"># 지금 값 전체를 YAML 형식으로 출력 (10장에서 파일로 씀)</span>
+<span class="o">/turtlesim:
+  ros__parameters:
+    background_b: 255
+    background_g: 86
+    background_r: 150
+    ...</span></pre>
+  <p>파라미터는 <strong>노드마다</strong> 따로 있으므로 노드 이름을 함께 씁니다. <code>use_sim_time</code>은 모든 노드에 자동으로 있는 파라미터로, 컴퓨터의 시계 대신 시뮬레이터나 bag 재생(5장)이 알려 주는 시간을 쓸지 정합니다.</p>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>처음 보는 노드가 어떤 토픽을 받고 내보내는지 알고 싶다. 어떤 명령을 쓰나?</summary><div class="a"><p><code>ros2 node info /노드이름</code>입니다. 구독하는 토픽, 발행하는 토픽, 제공하는 서비스와 액션을 한 번에 보여 줍니다.</p></div></details>
+    <details class="q"><summary>센서 노드를 켰는데 다른 노드가 데이터를 못 받는다. 센서 쪽이 제대로 발행하고 있는지 확인하는 명령 두 가지는?</summary><div class="a"><p><code>ros2 topic echo /토픽</code>으로 내용이 나오는지, <code>ros2 topic hz /토픽</code>으로 기대한 주기로 나오는지 확인합니다. <code>ros2 topic info</code>로 발행자 수가 1 이상인지도 볼 수 있습니다.</p></div></details>
+    <details class="q"><summary><code>geometry_msgs/msg/Twist</code>에서 바퀴 달린 로봇의 전진 속도와 회전 속도는 각각 어느 필드인가?</summary><div class="a"><p>전진 속도는 <code>linear.x</code>(m/s), 제자리 회전 속도는 <code>angular.z</code>(rad/s)입니다.</p></div></details>
+    <details class="q"><summary>서비스 형식과 액션 형식에서 <code>---</code>은 각각 무엇을 나누나?</summary><div class="a"><p>서비스는 요청 / 응답, 액션은 목표 / 결과 / 피드백을 나눕니다.</p></div></details>
+    <details class="q"><summary><code>ros2 topic pub /turtle1/cmd_vel ...</code>에서 <code>--once</code>를 빼면 어떻게 되나?</summary><div class="a"><p>기본 주기(1Hz)로 <kbd>Ctrl</kbd>+<kbd>C</kbd>를 누를 때까지 같은 메시지를 계속 발행합니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 5 ===================== -->
+<section class="lec" id="c5" data-num="5" data-group="Ⅱ. 시스템 들여다보기" data-title="시각화와 기록 도구">
+  <div class="manhead"><b>RQT(1)</b><span>5장</span><span>Visualization, Logging and Recording</span></div>
+  <h2>시각화와 기록 도구<small>rqt_graph · rqt · plot · image view · RViz2 · 로그 · rosout · ros2 bag</small></h2>
+  <p class="lead">명령줄로는 한 번에 하나씩밖에 볼 수 없습니다. 여러 노드의 연결, 시간에 따라 변하는 값, 카메라 영상, 3차원 센서 데이터는 그림으로 봐야 이해가 됩니다. 또 실제 로봇에서 생긴 문제를 책상 앞에서 다시 보려면 데이터를 기록해 둬야 합니다.</p>
+
+  <h3>rqt_graph: 노드와 토픽의 연결 그림</h3>
+  <pre><span class="p">$ </span>rqt_graph</pre>
+  <p>지금 실행 중인 노드(타원)와 토픽(사각형), 그리고 누가 무엇을 발행하고 구독하는지(화살표)를 그림으로 보여 줍니다. 3장의 turtlesim 그림을 ROS가 직접 그려 주는 셈입니다.</p>
+  <ul>
+    <li>새 노드를 띄운 뒤에는 왼쪽 위의 새로 고침 버튼을 눌러야 그림이 바뀝니다.</li>
+    <li>"Nodes only"는 노드만, "Nodes/Topics (all)"은 토픽까지 보여 줍니다. 받는 노드가 없는 토픽까지 보려면 "Dead sinks"와 "Leaf topics"의 숨김 체크를 해제합니다.</li>
+    <li>"토픽 이름은 맞게 쓴 것 같은데 연결이 안 된다"는 문제는 대부분 이 그림 한 장으로 찾을 수 있습니다. 이름이 한 글자라도 다르면 화살표가 이어지지 않고 따로 떨어져 보입니다.</li>
+  </ul>
+
+  <h3>rqt: 플러그인 모음</h3>
+  <p><code>rqt</code>는 ROS용 GUI 도구들을 담는 틀입니다. <code>rqt</code>를 실행하고 <strong>Plugins</strong> 메뉴에서 필요한 도구를 골라 창 안에 배치합니다. <code>rqt_graph</code>도 사실 그중 하나입니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>플러그인 (메뉴 위치)</th><th>하는 일</th></tr></thead>
+    <tbody>
+      <tr><td>Introspection → Node Graph</td><td><code>rqt_graph</code>와 같음</td></tr>
+      <tr><td>Topics → Topic Monitor</td><td>모든 토픽의 최근 값, 주기, 데이터 양을 표로 보기</td></tr>
+      <tr><td>Topics → Message Publisher</td><td>GUI로 메시지 발행 (<code>topic pub</code>의 GUI 판)</td></tr>
+      <tr><td>Services → Service Caller</td><td>GUI로 서비스 호출</td></tr>
+      <tr><td>Visualization → Plot</td><td>숫자 필드를 시간에 따른 그래프로 그림. 예: <code>/turtle1/pose/x</code></td></tr>
+      <tr><td>Visualization → Image View</td><td>카메라 영상(<code>sensor_msgs/msg/Image</code>) 토픽을 화면에 표시</td></tr>
+      <tr><td>Logging → Console</td><td>모든 노드의 로그를 한 곳에서 보고 수준별로 거르기</td></tr>
+      <tr><td>Configuration → Parameter Reconfigure</td><td>노드의 파라미터를 GUI로 바꾸기</td></tr>
+    </tbody>
+  </table></div>
+  <p>카메라가 없어도 Image View를 시험해 볼 수 있습니다. <code>image_tools</code> 패키지의 <code>cam2image</code> 노드는 <code>burger_mode</code> 파라미터를 켜면 카메라 대신 움직이는 햄버거 그림을 <code>/image</code> 토픽으로 발행합니다.</p>
+  <pre><span class="p">$ </span>ros2 run image_tools cam2image --ros-args -p burger_mode:=true    <span class="c"># --ros-args -p 는 10장</span>
+<span class="p">$ </span>rqt        <span class="c"># Plugins → Visualization → Image View, 왼쪽 위 목록에서 /image 선택</span></pre>
+  <div class="names"><span><code>rqt</code><i><b>r</b>os + <b>Qt</b> (GUI 라이브러리 이름)</i></span><span><code>introspection</code><i>introspection (자기 내부를 들여다봄)</i></span><span><code>plot</code><i>plot (그래프를 그리다)</i></span></div>
+
+  <h3>RViz2: 3차원 시각화</h3>
+  <pre><span class="p">$ </span>rviz2</pre>
+  <p>RViz2는 로봇과 센서 데이터를 <strong>3차원 공간</strong>에 겹쳐 보여 주는 도구입니다. 라이다 점, 카메라 영상, 지도, 로봇 모델(11장), 좌표계(12장), 경로를 한 화면에 띄워서 "로봇이 세상을 어떻게 보고 있는지"를 확인합니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>화면 부분</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td>Displays (왼쪽)</td><td>무엇을 그릴지 목록. <strong>Add</strong> → <strong>By topic</strong> 탭에서 지금 발행 중인 토픽을 골라 추가하면, 형식에 맞는 표시 방법이 자동으로 선택됨</td></tr>
+      <tr><td>Global Options → <strong>Fixed Frame</strong></td><td>화면의 기준 좌표계. 모든 데이터를 이 좌표계로 바꿔서 그림. 존재하지 않는 좌표계를 고르면 아무것도 안 나옴 (12장)</td></tr>
+      <tr><td>도구 막대 (위)</td><td>시점 이동, 화면을 클릭해 위치·목표를 토픽으로 발행하는 도구(2D Pose Estimate, 2D Goal Pose) 등</td></tr>
+      <tr><td>File → Save Config</td><td>지금 화면 구성을 <code>.rviz</code> 파일로 저장. 다음에 <code>rviz2 -d 파일.rviz</code>로 그대로 불러옴</td></tr>
+    </tbody>
+  </table></div>
+  <div class="warn"><b class="t">RViz2에 아무것도 안 보일 때</b>Displays 항목 옆에 경고나 오류 표시가 있는지 먼저 봅니다. 가장 흔한 원인은 Fixed Frame이 데이터의 좌표계와 연결되지 않은 것(12장), 그리고 토픽의 QoS가 맞지 않는 것(7장)입니다.</div>
+  <div class="names"><span><code>RViz</code><i><b>R</b>OS <b>Vi</b>suali<b>z</b>ation</i></span><span><code>display</code><i>display (표시 항목)</i></span></div>
+
+  <h3>로그와 /rosout</h3>
+  <p>노드 안에서 <code>print()</code> 대신 ROS의 로거를 쓰면 시간, 노드 이름, 중요도가 함께 기록됩니다.</p>
+  <pre data-label="Python">self.get_logger().info("목표 지점 도착")
+self.get_logger().warn("배터리 20% 남음")
+self.get_logger().error("라이다 데이터가 1초 넘게 오지 않음")</pre>
+  <pre><span class="o">[INFO] [1735279308.219978883] [navigator]: 목표 지점 도착
+[WARN] [1735279310.102938471] [battery_monitor]: 배터리 20% 남음</span></pre>
+  <div class="tbl"><table>
+    <thead><tr><th>수준</th><th>쓰는 경우</th></tr></thead>
+    <tbody>
+      <tr><td><code>DEBUG</code></td><td>개발 중에만 보고 싶은 아주 자세한 정보 (기본 설정에서는 출력 안 됨)</td></tr>
+      <tr><td><code>INFO</code></td><td>정상 동작의 진행 상황</td></tr>
+      <tr><td><code>WARN</code></td><td>지금은 동작하지만 주의가 필요한 상황</td></tr>
+      <tr><td><code>ERROR</code></td><td>기능 하나가 실패함</td></tr>
+      <tr><td><code>FATAL</code></td><td>노드가 더 이상 동작할 수 없음</td></tr>
+    </tbody>
+  </table></div>
+  <p>로그는 터미널에 찍히는 것과 동시에 <code>/rosout</code> 토픽으로도 발행되고, <code>~/.ros/log/</code> 아래 파일로도 저장됩니다. 그래서 노드가 다른 컴퓨터에서 돌고 있어도 <code>ros2 topic echo /rosout</code>나 rqt의 Console로 모든 노드의 로그를 한곳에서 볼 수 있습니다. 노드를 실행할 때 <code>--ros-args --log-level debug</code>를 붙이면 DEBUG 수준까지 출력됩니다.</p>
+
+  <h3>ros2 bag: 토픽 기록과 재생</h3>
+  <p>로봇을 실제로 움직여 보는 일은 시간이 많이 듭니다. <strong>bag</strong>은 토픽으로 오가는 메시지를 시간 정보와 함께 파일로 저장했다가, 나중에 <strong>그때와 똑같은 순서와 간격으로 다시 발행</strong>해 주는 기능입니다. 한 번 로봇을 움직이며 센서 데이터를 기록해 두면, 그 뒤로는 로봇 없이 책상에서 같은 데이터로 알고리즘을 몇 번이고 시험할 수 있습니다.</p>
+  <pre><span class="c"># 기록: 터미널 3 (turtlesim과 teleop은 실행 중)</span>
+<span class="p">$ </span>ros2 bag record -o test /turtle1/cmd_vel /turtle1/pose     <span class="c"># -o: 저장할 디렉터리 이름</span>
+<span class="o">[INFO] [rosbag2_recorder]: Subscribed to topic '/turtle1/cmd_vel'
+[INFO] [rosbag2_recorder]: Subscribed to topic '/turtle1/pose'</span>
+<span class="c"># 터미널 2에서 거북이를 이리저리 움직인 뒤 Ctrl+C로 기록 종료</span>
+
+<span class="p">$ </span>ros2 bag info test
+<span class="o">Files:             test_0.db3
+Bag size:          214.3 KiB
+Storage id:        sqlite3
+Duration:          21.315s
+Messages:          1381
+Topic information: Topic: /turtle1/cmd_vel | Type: geometry_msgs/msg/Twist | Count: 49 | Serialization Format: cdr
+                   Topic: /turtle1/pose | Type: turtlesim/msg/Pose | Count: 1332 | Serialization Format: cdr</span>
+
+<span class="c"># 재생: turtle_teleop_key 는 끄고, turtlesim 의 reset 서비스로 거북이를 처음 위치로</span>
+<span class="p">$ </span>ros2 service call /reset std_srvs/srv/Empty
+<span class="p">$ </span>ros2 bag play test        <span class="c"># 기록한 cmd_vel 이 다시 발행되어 거북이가 같은 길을 감</span></pre>
+  <div class="tbl"><table>
+    <thead><tr><th>명령 · 옵션</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td><code>record 토픽1 토픽2 …</code></td><td>지정한 토픽만 기록</td></tr>
+      <tr><td><code>record -a</code></td><td>모든 토픽 기록 (<b>a</b>ll). 영상이 있으면 파일이 금방 커짐</td></tr>
+      <tr><td><code>record -o 이름</code></td><td>저장 디렉터리 이름 (<b>o</b>utput). 없으면 <code>rosbag2_날짜_시각</code></td></tr>
+      <tr><td><code>info 이름</code></td><td>기록 길이, 토픽별 메시지 수와 형식</td></tr>
+      <tr><td><code>play 이름</code></td><td>재생</td></tr>
+      <tr><td><code>play -r 0.5</code> / <code>-l</code></td><td>절반 속도로 재생(<b>r</b>ate) / 끝나면 처음부터 반복(<b>l</b>oop)</td></tr>
+    </tbody>
+  </table></div>
+  <p><code>info</code> 결과의 <code>Serialization Format: cdr</code>은 DDS가 메시지를 바이트로 바꾸는 형식입니다(IPC 10장의 직렬화). bag은 네트워크로 오가던 바이트를 그대로 저장했다가 그대로 다시 내보내는 것입니다.</p>
+  <div class="warn"><b class="t">재생할 때 주의</b>재생하는 동안 원래 그 토픽을 발행하던 노드(센서 드라이버, 키보드 노드 등)가 함께 켜져 있으면 두 데이터가 섞입니다. 또 기록에는 그 당시의 시각이 들어 있으므로, 시간에 민감한 노드와 함께 쓸 때는 <code>ros2 bag play --clock</code>과 노드의 <code>use_sim_time:=true</code>를 함께 써서 "기록된 시각"을 기준으로 동작하게 합니다.</div>
+  <div class="names"><span><code>bag</code><i>bag (자루: 메시지를 담아 두는 곳)</i></span><span><code>.db3</code><i>SQLite 3 데이터베이스 파일</i></span><span><code>CDR</code><i><b>C</b>ommon <b>D</b>ata <b>R</b>epresentation</i></span></div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>두 노드가 같은 토픽으로 통신해야 하는데 데이터가 안 간다. 가장 먼저 띄워 볼 GUI 도구는? 무엇을 확인하나?</summary><div class="a"><p><code>rqt_graph</code>입니다. 두 노드가 같은 토픽 사각형에 화살표로 이어져 있는지 봅니다. 토픽 이름이 다르면 서로 다른 사각형으로 따로 떨어져 보입니다.</p></div></details>
+    <details class="q"><summary>로봇의 x 위치가 시간에 따라 어떻게 변하는지 그래프로 보려면?</summary><div class="a"><p>rqt의 Plot 플러그인(Plugins → Visualization → Plot)에 <code>/turtle1/pose/x</code>처럼 토픽과 필드 이름을 넣습니다.</p></div></details>
+    <details class="q"><summary>RViz2의 Fixed Frame은 무엇인가?</summary><div class="a"><p>화면에 그리는 모든 데이터의 기준 좌표계입니다. RViz2는 각 데이터를 이 좌표계로 변환해서 그리므로, 데이터의 좌표계와 Fixed Frame 사이의 변환을 알 수 없으면 아무것도 그리지 못합니다.</p></div></details>
+    <details class="q"><summary><code>print()</code> 대신 <code>self.get_logger().info()</code>를 쓰면 좋은 점은?</summary><div class="a"><p>시간, 노드 이름, 중요도가 함께 기록되고, <code>/rosout</code> 토픽과 로그 파일로도 남아서 다른 컴퓨터의 노드 로그까지 한곳에서 모아 보고 수준별로 거를 수 있습니다.</p></div></details>
+    <details class="q"><summary>대회장에서 로봇의 라이다와 카메라 데이터를 bag으로 기록해 왔다. 이것으로 무엇을 할 수 있나?</summary><div class="a"><p>로봇 없이도 <code>ros2 bag play</code>로 그때와 같은 센서 데이터를 같은 시간 간격으로 다시 발행할 수 있으므로, 인식이나 위치 추정 알고리즘을 같은 조건에서 반복해서 시험하고 고칠 수 있습니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 6 ===================== -->
+<section class="lec" id="c6" data-num="6" data-group="Ⅲ. Python 패키지" data-title="Python 패키지 만들기">
+  <div class="manhead"><b>COLCON(1)</b><span>6장</span><span>Python Packages and Workspaces</span></div>
+  <h2>Python 패키지 만들기<small>워크스페이스 · ros2 pkg create · ament_python · package.xml · setup.py · entry_points · 노드 코드의 뼈대 · colcon build · --symlink-install · rosdep</small></h2>
+  <p class="lead">지금까지는 ROS 2에 들어 있는 노드를 실행만 했습니다. 직접 만든 노드를 <code>ros2 run</code>으로 실행하려면 코드를 <strong>패키지</strong>로 묶고, <strong>워크스페이스</strong>에서 <strong>빌드</strong>해야 합니다. Python은 컴파일이 필요 없는데도 왜 빌드를 하는지, 그 과정에서 어떤 파일이 어디로 가는지를 이해하는 것이 이 장의 목표입니다.</p>
+
+  <h3>패키지와 워크스페이스</h3>
+  <ul>
+    <li><strong>패키지</strong>(package): ROS 2에서 코드를 나누고 배포하는 단위입니다. 노드 코드, launch 파일, 설정 파일, 그리고 "이 패키지가 어떤 다른 패키지를 쓰는지"(의존성)가 한 패키지에 들어갑니다. <code>turtlesim</code>도 패키지 하나입니다.</li>
+    <li><strong>워크스페이스</strong>(workspace): 내 패키지들을 모아 두고 한꺼번에 빌드하는 디렉터리입니다. 이름은 자유지만 보통 <code>~/ros2_ws</code>를 쓰고, 패키지 소스는 반드시 그 안의 <code>src/</code>에 둡니다.</li>
+  </ul>
+  <pre><span class="p">$ </span>mkdir -p ~/ros2_ws/src
+<span class="p">$ </span>cd ~/ros2_ws                       <span class="c"># 빌드는 항상 워크스페이스 최상위에서</span>
+<span class="p">$ </span>colcon build --symlink-install
+<span class="p">$ </span>ls
+<span class="o">build  install  log  src</span></pre>
+  <div class="tbl"><table>
+    <thead><tr><th>디렉터리</th><th>누가 만드나</th><th>들어 있는 것</th></tr></thead>
+    <tbody>
+      <tr><td><code>src/</code></td><td>개발자</td><td>패키지 소스 코드. git으로 관리하는 것은 여기뿐</td></tr>
+      <tr><td><code>build/</code></td><td>colcon</td><td>패키지별 중간 작업 파일</td></tr>
+      <tr><td><code>install/</code></td><td>colcon</td><td>설치된 결과: 실행 파일, Python 모듈, launch·설정 파일, 그리고 <code>setup.bash</code></td></tr>
+      <tr><td><code>log/</code></td><td>colcon</td><td>빌드 기록. 빌드 오류의 자세한 내용</td></tr>
+    </tbody>
+  </table></div>
+  <p><code>install/</code>은 2장에서 본 <code>/opt/ros/humble</code>과 같은 구조의 설치본입니다. 그래서 <code>source install/setup.bash</code>를 하면 내 패키지가 overlay로 얹혀 <code>ros2 run</code>, <code>ros2 launch</code>로 찾을 수 있게 됩니다.</p>
+  <div class="names"><span><code>colcon</code><i><b>col</b>lective <b>con</b>struction (여럿을 함께 빌드)</i></span><span><code>workspace</code><i>work + space (작업 공간)</i></span></div>
+
+  <h3>Python인데 왜 빌드하나</h3>
+  <p>Python 파일은 <code>python3 파일.py</code>로 바로 실행할 수 있습니다. 그런데도 빌드(정확히는 <strong>설치</strong>)를 하는 이유는, ROS 2 도구들이 소스 디렉터리가 아니라 <strong>정해진 설치 위치</strong>에서 파일을 찾기 때문입니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>도구</th><th>찾는 곳</th></tr></thead>
+    <tbody>
+      <tr><td><code>ros2 run 패키지 실행파일</code></td><td><code>install/패키지/lib/패키지/실행파일</code></td></tr>
+      <tr><td><code>ros2 launch 패키지 파일</code></td><td><code>install/패키지/share/패키지/launch/</code></td></tr>
+      <tr><td>Python의 <code>import 패키지</code></td><td><code>install/패키지/lib/python3.10/site-packages/</code></td></tr>
+      <tr><td>설정 파일 경로 찾기 (10장)</td><td><code>install/패키지/share/패키지/</code></td></tr>
+    </tbody>
+  </table></div>
+  <p>빌드는 이 위치들로 파일을 옮기고, 실행 스크립트를 만들고, 패키지 목록에 등록하는 일입니다. 정해진 자리에 놓여 있기 때문에 다른 사람의 컴퓨터에서도, 다른 디렉터리에서도 같은 명령으로 실행할 수 있습니다.</p>
+
+  <h3>패키지 만들기</h3>
+  <div class="syn"><span class="usage">$ ros2 pkg create --build-type ament_python [--dependencies 패키지…] &lt;이름&gt;</span><span class="desc">현재 디렉터리에 Python 패키지의 뼈대를 만듭니다. 반드시 <code>src/</code> 안에서 실행합니다. 이름은 소문자와 밑줄만 씁니다(하이픈 불가).</span></div>
+  <pre><span class="p">$ </span>cd ~/ros2_ws/src
+<span class="p">$ </span>ros2 pkg create --build-type ament_python --dependencies rclpy std_msgs my_py_pkg</pre>
+  <pre><span class="o">my_py_pkg/
+├── package.xml           </span><span class="c"># 패키지 정보와 의존성</span><span class="o">
+├── setup.py              </span><span class="c"># 무엇을 어디에 설치할지</span><span class="o">
+├── setup.cfg             </span><span class="c"># 실행 스크립트 설치 위치 (고칠 일 거의 없음)</span><span class="o">
+├── resource/my_py_pkg    </span><span class="c"># 패키지 목록 등록용 빈 파일</span><span class="o">
+├── my_py_pkg/            </span><span class="c"># Python 모듈: 패키지와 같은 이름</span><span class="o">
+│   └── __init__.py
+└── test/                 </span><span class="c"># 코드 스타일 검사 등 테스트</span></pre>
+  <p>노드 코드는 안쪽의 <code>my_py_pkg/</code> 디렉터리(패키지 이름과 같은 이름의 Python 모듈)에 넣습니다. 바깥 디렉터리와 이름이 같아 헷갈리기 쉬운데, 바깥은 <strong>ROS 패키지</strong>, 안쪽은 <strong>Python 모듈</strong>입니다.</p>
+  <div class="names"><span><code>ament_python</code><i>ament (ROS 2 빌드 규칙) + Python</i></span><span><code>--dependencies</code><i>의존 패키지를 package.xml 에 미리 적어 줌</i></span></div>
+
+  <h3>package.xml: 패키지의 신분증</h3>
+  <p><code>package.xml</code>에는 패키지 이름, 버전, 설명, 관리자, 라이선스, 그리고 <strong>의존성</strong>(이 패키지가 쓰는 다른 패키지)을 적습니다. colcon은 의존성을 보고 패키지들의 빌드 순서를 정하고, rosdep(아래)은 이것을 보고 필요한 패키지를 설치합니다.</p>
+  <pre data-label="package.xml (일부)">&lt;package format="3"&gt;
+  &lt;name&gt;my_py_pkg&lt;/name&gt;
+  &lt;version&gt;0.0.0&lt;/version&gt;
+  &lt;description&gt;TODO: Package description&lt;/description&gt;
+  &lt;maintainer email="me@example.com"&gt;me&lt;/maintainer&gt;
+  &lt;license&gt;Apache-2.0&lt;/license&gt;
+
+  &lt;depend&gt;rclpy&lt;/depend&gt;                  <span class="c">&lt;!-- 코드에서 import 하는 ROS 패키지 --&gt;</span>
+  &lt;depend&gt;std_msgs&lt;/depend&gt;
+  &lt;exec_depend&gt;turtlesim&lt;/exec_depend&gt;    <span class="c">&lt;!-- 실행할 때만 필요 (launch 에서 띄우는 노드 등) --&gt;</span>
+
+  &lt;export&gt;
+    &lt;build_type&gt;ament_python&lt;/build_type&gt;
+  &lt;/export&gt;
+&lt;/package&gt;</pre>
+  <div class="note"><b class="t">의존성을 빠뜨려도 빌드는 된다</b>Python은 컴파일하지 않으므로 의존성을 빠뜨려도 내 컴퓨터에서는 빌드와 실행이 됩니다(이미 설치되어 있으니까요). 문제는 다른 컴퓨터에서 rosdep으로 설치할 때 그 패키지가 빠진다는 것입니다. 코드에서 <code>import</code>하는 ROS 패키지는 빠짐없이 <code>&lt;depend&gt;</code>로 적어 둡니다.</div>
+
+  <h3>노드 코드의 뼈대</h3>
+  <p>모든 rclpy 노드는 같은 뼈대를 가집니다. 1초마다 로그를 찍는 가장 작은 노드입니다.</p>
+  <pre data-label="my_py_pkg/hello_node.py">import rclpy
+from rclpy.node import Node
+
+
+class HelloNode(Node):                      <span class="c"># 노드 = Node 를 상속한 클래스</span>
+    def __init__(self):
+        super().__init__('hello_node')                     <span class="c"># 노드 이름</span>
+        self.timer = self.create_timer(1.0, self.on_timer) <span class="c"># 1초마다 on_timer 호출 예약</span>
+        self.count = 0
+
+    def on_timer(self):                     <span class="c"># 콜백: 때가 되면 불림</span>
+        self.get_logger().info(f'hello {self.count}')
+        self.count += 1
+
+
+def main(args=None):
+    rclpy.init(args=args)       <span class="c"># ① ROS 2 통신 준비</span>
+    node = HelloNode()          <span class="c"># ② 노드 생성: 타이머·발행자·구독자 등록</span>
+    rclpy.spin(node)            <span class="c"># ③ 이벤트를 기다리며 콜백 호출 (Ctrl+C 까지)</span>
+    node.destroy_node()         <span class="c"># ④ 정리</span>
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()</pre>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 200" role="img" aria-label="rclpy.init, 노드 생성에서 발행자 구독자 타이머 등록, spin 루프에서 타이머 만료나 메시지 도착을 기다렸다가 해당 콜백 호출, Ctrl+C로 빠져나와 shutdown">
+        <rect class="bx" x="10" y="80" width="100" height="40" rx="4"/><text class="t tm c" x="60" y="100">init()</text>
+        <rect class="bx" x="140" y="70" width="130" height="60" rx="4"/><text class="tb c" x="205" y="90">노드 생성</text><text class="ts c" x="205" y="110">타이머·발행자·구독자 등록</text>
+        <rect class="bx-a" x="300" y="60" width="170" height="80" rx="6"/><text class="tb tm c" x="385" y="82">spin()</text><text class="ts c" x="385" y="102">기다림 → 일이 생기면</text><text class="ts c" x="385" y="120">해당 콜백 호출 → 다시 기다림</text>
+        <rect class="bx" x="500" y="80" width="130" height="40" rx="4"/><text class="t tm c" x="565" y="100">shutdown()</text>
+        <path class="ln" d="M110 100 L136 100"/><path class="ln" d="M270 100 L296 100"/><path class="ln" d="M470 100 L496 100"/><text class="ts c" x="483" y="90">Ctrl+C</text>
+        <path class="ln-a" d="M440 140 C440 185 330 185 330 144"/>
+        <text class="ts ta c" x="385" y="192">반복</text>
+        <text class="ts c" x="385" y="40">타이머 시간 됨 → on_timer · 메시지 도착 → 구독 콜백</text>
+      </svg>
+    </div>
+    <figcaption>ROS 2 노드의 실행 흐름. 생성자(<code>__init__</code>)에서는 <strong>무엇을 할지 등록만</strong> 하고, 실제 일은 <code>spin()</code>이 때가 되면 불러 주는 <strong>콜백</strong> 안에서 일어납니다. 그래서 콜백 안에서 오래 걸리는 일을 하면 그동안 다른 콜백이 모두 밀립니다(8장).</figcaption>
+  </figure>
+  <div class="names"><span><code>rclpy</code><i><b>R</b>OS <b>C</b>lient <b>L</b>ibrary for <b>Py</b>thon</i></span><span><code>timer</code><i>timer (일정 시간마다 알림)</i></span><span><code>callback</code><i>call back (나중에 불러 줌)</i></span><span><code>spin</code><i>spin (계속 돌다)</i></span></div>
+
+  <h3>setup.py: 노드를 실행 파일로 등록</h3>
+  <p><code>ros2 run my_py_pkg hello</code>처럼 실행하려면, <code>setup.py</code>의 <code>entry_points</code>에 "실행 파일 이름 = 모듈 위치:함수"를 등록합니다.</p>
+  <pre data-label="setup.py (일부)">entry_points={
+    'console_scripts': [
+        'hello = my_py_pkg.hello_node:main',    <span class="c"># 실행 파일 hello → my_py_pkg/hello_node.py 의 main() 실행</span>
+    ],
+},</pre>
+  <p>빌드하면 <code>install/my_py_pkg/lib/my_py_pkg/hello</code>라는 작은 실행 스크립트가 생기고, 이것이 <code>main()</code>을 부릅니다. 실행 파일 이름(<code>hello</code>), 파일 이름(<code>hello_node.py</code>), 노드 이름(<code>'hello_node'</code>)은 서로 달라도 되지만, 헷갈리지 않게 비슷하게 짓는 경우가 많습니다. launch 파일과 설정 파일을 설치하는 <code>data_files</code>는 10장에서 다룹니다.</p>
+
+  <h3>빌드하고 실행하기</h3>
+  <pre><span class="p">$ </span>cd ~/ros2_ws
+<span class="p">$ </span>colcon build --symlink-install --packages-select my_py_pkg
+<span class="o">Starting >>> my_py_pkg
+Finished <<< my_py_pkg [1.02s]
+
+Summary: 1 package finished [1.31s]</span>
+<span class="p">$ </span>source install/setup.bash
+<span class="p">$ </span>ros2 run my_py_pkg hello
+<span class="o">[INFO] [1735279308.219978883] [hello_node]: hello 0
+[INFO] [1735279309.220101731] [hello_node]: hello 1</span></pre>
+  <div class="tbl"><table>
+    <thead><tr><th>옵션</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td><code>--symlink-install</code></td><td>파일을 <code>install/</code>로 복사하는 대신 원본을 가리키는 심볼릭 링크(리눅스 첫걸음 4장)를 만듦. Python 코드, launch 파일, YAML 설정을 고친 뒤 <strong>다시 빌드하지 않아도</strong> 바로 반영됨</td></tr>
+      <tr><td><code>--packages-select 패키지…</code></td><td>지정한 패키지만 빌드. 패키지가 많을 때 시간 절약</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tbl"><table>
+    <thead><tr><th>이런 걸 고쳤으면</th><th>다시 빌드해야 하나 (<code>--symlink-install</code> 기준)</th></tr></thead>
+    <tbody>
+      <tr><td>이미 등록된 노드의 Python 코드</td><td>아니요</td></tr>
+      <tr><td>이미 설치된 launch·YAML 파일의 내용</td><td>아니요</td></tr>
+      <tr><td><code>entry_points</code>에 실행 파일 추가, <code>setup.py</code>, <code>package.xml</code></td><td>예</td></tr>
+      <tr><td><code>launch/</code>, <code>config/</code>에 새 파일 추가</td><td>예 (새 링크를 만들어야 함)</td></tr>
+    </tbody>
+  </table></div>
+  <div class="warn"><b class="t">자주 하는 실수</b>
+    <ul>
+      <li><code>src/</code> 안이나 패키지 안에서 <code>colcon build</code>를 실행하면, 그 자리에 <code>build/</code>, <code>install/</code>이 엉뚱하게 또 생깁니다. 반드시 워크스페이스 최상위(<code>~/ros2_ws</code>)에서 실행합니다.</li>
+      <li>빌드한 뒤 <code>source install/setup.bash</code>를 하지 않으면, 새로 만든 패키지나 실행 파일이 "Package not found", "No executable found"로 나옵니다. 다른 터미널에서 실행할 때도 그 터미널에서 source해야 합니다(2장).</li>
+    </ul>
+  </div>
+
+  <h3>rosdep: 의존 패키지 한꺼번에 설치</h3>
+  <p>다른 사람이 만든 패키지를 받아 빌드하면, 필요한 패키지가 설치되어 있지 않아 실패하는 경우가 많습니다. <strong>rosdep</strong>은 워크스페이스 안 모든 <code>package.xml</code>의 의존성을 읽어서, 빠진 것을 apt로 한꺼번에 설치해 줍니다.</p>
+  <pre><span class="p">$ </span>sudo rosdep init          <span class="c"># 처음 한 번만</span>
+<span class="p">$ </span>rosdep update
+<span class="p">$ </span>cd ~/ros2_ws
+<span class="p">$ </span>rosdep install --from-paths src --ignore-src -y
+<span class="c"># --from-paths src: src 안의 package.xml 을 모두 읽음
+# --ignore-src: 워크스페이스에 소스로 있는 패키지는 apt 로 설치하지 않음
+# -y: 설치 여부를 묻지 않음</span></pre>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>Python 코드는 컴파일이 필요 없는데 왜 <code>colcon build</code>를 하나?</summary><div class="a"><p><code>ros2 run</code>, <code>ros2 launch</code> 같은 도구는 소스가 아니라 <code>install/</code> 아래 정해진 위치에서 실행 파일과 launch·설정 파일을 찾기 때문입니다. 빌드는 파일을 그 위치로 설치하고 실행 스크립트를 만들어 패키지를 등록하는 과정입니다.</p></div></details>
+    <details class="q"><summary>워크스페이스에서 git으로 관리해야 하는 디렉터리는? <code>build</code>, <code>install</code>, <code>log</code>는 왜 아닌가?</summary><div class="a"><p><code>src/</code>만 관리합니다. 나머지 셋은 colcon이 소스로부터 언제든 다시 만들 수 있는 결과물이기 때문입니다.</p></div></details>
+    <details class="q"><summary>노드의 생성자(<code>__init__</code>)에서 하는 일과 콜백에서 하는 일은 어떻게 다른가?</summary><div class="a"><p>생성자에서는 타이머, 발행자, 구독자를 등록만 합니다. 실제 처리는 <code>spin()</code>이 타이머 만료나 메시지 도착 때 불러 주는 콜백 안에서 일어납니다.</p></div></details>
+    <details class="q"><summary>Python 노드 파일을 새로 만들었는데 <code>ros2 run 패키지 노드</code>가 "No executable found"라고 한다. 무엇을 빠뜨렸을까?</summary><div class="a"><p><code>setup.py</code>의 <code>entry_points</code>에 실행 파일을 등록하지 않았거나, 등록한 뒤 다시 빌드하고 <code>source install/setup.bash</code>를 하지 않은 것입니다.</p></div></details>
+    <details class="q"><summary><code>--symlink-install</code>로 빌드했을 때, 이미 등록된 노드의 코드를 고친 뒤 다시 빌드해야 하나?</summary><div class="a"><p>아닙니다. <code>install/</code>에 원본 파일을 가리키는 링크가 있으므로, 원본을 고치면 바로 반영됩니다. 단, 실행 파일을 새로 등록하거나 새 파일을 추가했다면 다시 빌드해야 합니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 7 ===================== -->
+<section class="lec" id="c7" data-num="7" data-group="Ⅳ. 통신 세 가지" data-title="Topic">
+  <div class="manhead"><b>TOPIC(7)</b><span>7장</span><span>Topics, Messages and QoS</span></div>
+  <h2>Topic: 발행과 구독<small>발행자 · 구독자 · .msg · Header · 표준 메시지 · 인터페이스 패키지 · QoS</small></h2>
+  <p class="lead">Topic은 ROS 2에서 가장 많이 쓰는 통신입니다. 이 장에서는 6장의 노드 뼈대에 발행자와 구독자를 붙이는 방법, 주고받는 메시지의 형식, 그리고 "보냈는데 왜 안 오지?"의 단골 원인인 QoS를 다룹니다.</p>
+
+  <h3>발행자와 구독자</h3>
+  <p>6장의 뼈대에서 생성자에 발행자나 구독자를 등록하는 줄만 더하면 됩니다.</p>
+  <pre data-label="my_py_pkg/talker.py">import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String             <span class="c"># 메시지 형식 가져오기</span>
+
+
+class Talker(Node):
+    def __init__(self):
+        super().__init__('talker')
+        self.pub = self.create_publisher(String, 'chatter', 10)   <span class="c"># 형식, 토픽 이름, QoS(큐 크기)</span>
+        self.timer = self.create_timer(0.5, self.on_timer)        <span class="c"># 0.5초마다 발행</span>
+        self.count = 0
+
+    def on_timer(self):
+        msg = String()
+        msg.data = f'Hello World: {self.count}'
+        self.pub.publish(msg)                                     <span class="c"># 누가 받는지는 모름</span>
+        self.get_logger().info(f'Publishing: "{msg.data}"')
+        self.count += 1
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = Talker()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()</pre>
+  <pre data-label="my_py_pkg/listener.py">import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
+
+class Listener(Node):
+    def __init__(self):
+        super().__init__('listener')
+        self.sub = self.create_subscription(String, 'chatter', self.on_msg, 10)
+
+    def on_msg(self, msg):                  <span class="c"># 구독 콜백: 메시지가 올 때마다 불림</span>
+        self.get_logger().info(f'I heard: "{msg.data}"')
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = Listener()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()</pre>
+  <p><code>setup.py</code>에 <code>'talker = my_py_pkg.talker:main'</code>, <code>'listener = my_py_pkg.listener:main'</code>를 등록하고 빌드한 뒤, 두 터미널에서 실행합니다.</p>
+  <pre><span class="p">$ </span>ros2 run my_py_pkg talker          <span class="c"># 터미널 1</span>
+<span class="p">$ </span>ros2 run my_py_pkg listener        <span class="c"># 터미널 2</span></pre>
+  <div class="tbl"><table>
+    <thead><tr><th>하는 일</th><th>코드</th></tr></thead>
+    <tbody>
+      <tr><td>발행자 만들기</td><td><code>self.create_publisher(형식, '토픽', qos)</code></td></tr>
+      <tr><td>보내기</td><td><code>self.pub.publish(msg)</code></td></tr>
+      <tr><td>구독자 만들기</td><td><code>self.create_subscription(형식, '토픽', 콜백, qos)</code></td></tr>
+      <tr><td>받기</td><td>콜백 함수가 메시지 객체를 인자로 받음</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><b class="t">발행은 언제 하나</b>위 예처럼 타이머로 일정 주기마다 발행할 수도 있고, 구독 콜백 안에서 받은 데이터를 처리한 결과를 바로 다른 토픽으로 발행할 수도 있습니다. 센서 데이터를 받아 가공해서 다시 내보내는 노드는 대부분 두 번째 모양입니다.</div>
+
+  <h3>메시지 정의: .msg 파일</h3>
+  <p>메시지 형식은 <code>.msg</code> 파일에 "형식 이름" 한 줄씩 적어 정의합니다. 빌드할 때 이 파일로부터 Python 클래스(와 다른 언어용 코드)가 <strong>자동으로 생성</strong>됩니다. IPC 9장에서 "보내는 쪽과 받는 쪽이 형식을 문서로만 약속하면 조용히 틀린다"고 했던 문제를, ROS 2는 한 정의 파일에서 양쪽 코드를 만들어 해결합니다.</p>
+  <pre data-label="예: sensor_msgs/msg/LaserScan.msg (설명 줄임)">std_msgs/Header header     <span class="c"># 시각(stamp)과 좌표계 이름(frame_id)</span>
+float32 angle_min          <span class="c"># 스캔 시작 각도 [rad]</span>
+float32 angle_max          <span class="c"># 스캔 끝 각도 [rad]</span>
+float32 angle_increment    <span class="c"># 측정 사이 각도 [rad]</span>
+float32 time_increment
+float32 scan_time
+float32 range_min          <span class="c"># 유효 거리 최솟값 [m]</span>
+float32 range_max
+float32[] ranges           <span class="c"># 거리 측정값 배열 [m]</span>
+float32[] intensities</pre>
+  <div class="tbl"><table>
+    <thead><tr><th>필드 형식</th><th>예</th><th>Python에서</th></tr></thead>
+    <tbody>
+      <tr><td>기본 형식</td><td><code>bool</code>, <code>int32</code>, <code>uint8</code>, <code>float64</code>, <code>string</code></td><td><code>bool</code>, <code>int</code>, <code>float</code>, <code>str</code></td></tr>
+      <tr><td>가변 길이 배열</td><td><code>float32[] ranges</code></td><td>리스트 (또는 <code>array.array</code>)</td></tr>
+      <tr><td>고정 길이 배열</td><td><code>float64[9] covariance</code></td><td>길이 9인 배열</td></tr>
+      <tr><td>다른 메시지</td><td><code>geometry_msgs/Vector3 linear</code></td><td>그 메시지의 객체 (<code>msg.linear.x</code>)</td></tr>
+      <tr><td>상수</td><td><code>uint8 ERROR=2</code></td><td>클래스 속성 (<code>MyMsg.ERROR</code>)</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><b class="t">Header: 언제, 어느 좌표계 기준인가</b>센서 메시지는 대부분 맨 앞에 <code>std_msgs/Header</code>를 가집니다. <code>stamp</code>는 데이터를 <strong>측정한 시각</strong>, <code>frame_id</code>는 그 값이 <strong>어느 좌표계 기준</strong>인지(예: <code>laser</code>, <code>camera_link</code>)입니다. 라이다의 "1m 앞"은 라이다 기준이지 로봇 중심 기준이 아니므로, 이 정보가 있어야 12장의 TF2로 다른 좌표계로 바꿀 수 있습니다.</div>
+
+  <h3>자주 쓰는 표준 메시지</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>패키지</th><th>메시지</th><th>담는 것</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="3"><code>geometry_msgs</code></td><td><code>Twist</code></td><td>직선·회전 속도 (속도 명령 <code>/cmd_vel</code>)</td></tr>
+      <tr><td><code>Pose</code>, <code>PoseStamped</code></td><td>위치(x, y, z) + 방향(쿼터니언, 12장). Stamped는 Header 포함</td></tr>
+      <tr><td><code>TransformStamped</code></td><td>두 좌표계 사이의 변환 (12장)</td></tr>
+      <tr><td rowspan="5"><code>sensor_msgs</code></td><td><code>LaserScan</code></td><td>2D 라이다 한 바퀴</td></tr>
+      <tr><td><code>PointCloud2</code></td><td>3D 라이다·깊이 카메라의 점 구름</td></tr>
+      <tr><td><code>Image</code>, <code>CompressedImage</code></td><td>카메라 영상</td></tr>
+      <tr><td><code>Imu</code></td><td>가속도, 각속도, 방향</td></tr>
+      <tr><td><code>JointState</code></td><td>관절의 각도·속도·힘 (11장)</td></tr>
+      <tr><td rowspan="3"><code>nav_msgs</code></td><td><code>Odometry</code></td><td>바퀴 회전 등으로 추정한 위치와 속도</td></tr>
+      <tr><td><code>OccupancyGrid</code></td><td>격자 지도 (자율주행용 지도)</td></tr>
+      <tr><td><code>Path</code></td><td>경로 (Pose의 목록)</td></tr>
+      <tr><td><code>std_msgs</code></td><td><code>String</code>, <code>Int32</code>, <code>Bool</code> …</td><td>값 하나. 예제용으로는 편하지만, 의미가 드러나지 않아 실제 시스템에서는 잘 쓰지 않음</td></tr>
+    </tbody>
+  </table></div>
+  <p>원하는 형식이 표준 메시지에 있으면 그것을 씁니다. 표준 형식을 쓰면 RViz2, rqt, 공개된 자율주행 패키지 같은 기존 도구가 내 데이터를 바로 이해합니다.</p>
+
+  <h3>직접 정의하기: 인터페이스 패키지</h3>
+  <p>표준 메시지에 없는 형식이 필요하면 <code>.msg</code> 파일을 직접 만듭니다. 서비스(<code>.srv</code>, 8장)와 액션(<code>.action</code>, 9장)도 같은 방식입니다. 이런 정의 파일은 노드 코드와 따로 <strong>인터페이스 전용 패키지</strong>에 모아 두는 것이 관례입니다. 여러 패키지가 같은 정의를 함께 쓰기 때문입니다.</p>
+  <pre><span class="o">my_interfaces/
+├── package.xml
+├── CMakeLists.txt      </span><span class="c"># 정의 파일 목록을 등록하는 곳</span><span class="o">
+├── msg/
+│   └── RobotStatus.msg
+├── srv/                </span><span class="c"># 8장</span><span class="o">
+└── action/             </span><span class="c"># 9장</span></pre>
+  <pre data-label="msg/RobotStatus.msg">uint8 IDLE=0             <span class="c"># 상수</span>
+uint8 MOVING=1
+uint8 ERROR=2
+
+std_msgs/Header header   <span class="c"># 다른 메시지를 필드로</span>
+uint8 state
+float32 battery_percent
+string message</pre>
+  <p>빌드하면 이 정의 파일로부터 Python 클래스가 자동으로 만들어지고, 노드에서는 표준 메시지와 똑같이 가져다 씁니다.</p>
+  <pre data-label="노드에서 사용">from my_interfaces.msg import RobotStatus
+
+msg = RobotStatus()
+msg.state = RobotStatus.MOVING
+msg.battery_percent = 87.5</pre>
+  <div class="note"><b class="t">Python만 써도 CMakeLists.txt가 있는 이유</b>정의 파일에서 코드를 만들어 내는 도구(rosidl)가 CMake로 동작하기 때문에, 인터페이스 패키지는 노드 패키지와 달리 <code>ament_cmake</code> 형식으로 만듭니다. <code>CMakeLists.txt</code>에는 "이 정의 파일들로 코드를 만들어라"는 목록만 몇 줄 적으면 되고, 노드 코드는 여전히 Python 패키지에 둡니다. 형식 이름은 대문자로 시작하는 낱말 붙여 쓰기(<code>RobotStatus</code>), 필드 이름은 소문자와 밑줄(<code>battery_percent</code>)로 씁니다.</div>
+  <div class="names"><span><code>rosidl</code><i><b>ROS</b> <b>I</b>nterface <b>D</b>efinition <b>L</b>anguage</i></span></div>
+  <h3>QoS: 통신 품질 설정</h3>
+  <p><code>create_publisher(String, 'chatter', 10)</code>의 마지막 숫자 <code>10</code>은 <strong>QoS</strong> 설정을 줄여 쓴 것입니다. QoS는 "메시지를 어떻게 전달할지"에 대한 약속으로, 발행자와 구독자가 각자 정합니다. 중요한 항목은 세 가지입니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>항목</th><th>선택지</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="2"><strong>History / Depth</strong><br>몇 개 보관하나</td><td><code>KEEP_LAST</code> + 개수</td><td>최근 N개만 보관. 받는 쪽이 느리면 오래된 것부터 버림. 숫자 <code>10</code>이 이것</td></tr>
+      <tr><td><code>KEEP_ALL</code></td><td>전부 보관 (메모리 한도까지)</td></tr>
+      <tr><td rowspan="2"><strong>Reliability</strong><br>잃어버리면?</td><td><code>RELIABLE</code></td><td>도착을 확인하고, 빠지면 다시 보냄. TCP와 비슷 (IPC 6장)</td></tr>
+      <tr><td><code>BEST_EFFORT</code></td><td>한 번 보내고 끝. 빠져도 다시 안 보냄. UDP와 비슷. 지연이 적음</td></tr>
+      <tr><td rowspan="2"><strong>Durability</strong><br>늦게 온 구독자는?</td><td><code>VOLATILE</code></td><td>구독하기 전에 발행된 메시지는 받지 못함</td></tr>
+      <tr><td><code>TRANSIENT_LOCAL</code></td><td>발행자가 마지막 메시지(depth개)를 보관했다가, 나중에 연결된 구독자에게도 보내 줌</td></tr>
+    </tbody>
+  </table></div>
+  <p>그냥 숫자 <code>10</code>만 쓰면 <code>KEEP_LAST 10 + RELIABLE + VOLATILE</code>이 됩니다. IPC 3장에서 "명령은 빠지면 안 되지만, 센서 값은 빠지더라도 최신 값을 빨리 받는 게 중요하다"고 했던 차이를 여기서 고르는 것입니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>데이터</th><th>알맞은 설정</th><th>이유</th></tr></thead>
+    <tbody>
+      <tr><td>라이다, 카메라, IMU</td><td><code>BEST_EFFORT</code>, depth 작게</td><td>하나 빠져도 곧 다음 것이 옴. 다시 보내느라 늦어진 옛 데이터는 쓸모없음</td></tr>
+      <tr><td>속도 명령, 임무 명령</td><td><code>RELIABLE</code></td><td>빠지면 로봇이 엉뚱하게 동작</td></tr>
+      <tr><td>지도, 로봇 모델, 고정된 좌표 변환</td><td><code>RELIABLE</code> + <code>TRANSIENT_LOCAL</code></td><td>한 번만 발행해도 나중에 켜진 노드(RViz2 등)가 받을 수 있어야 함</td></tr>
+    </tbody>
+  </table></div>
+  <pre data-label="Python에서 QoS 지정">from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, qos_profile_sensor_data
+
+<span class="c"># 센서용으로 미리 만들어 둔 설정 (BEST_EFFORT, depth 5)</span>
+self.create_subscription(LaserScan, 'scan', self.on_scan, qos_profile_sensor_data)
+
+<span class="c"># 직접 만들기</span>
+latched = QoSProfile(depth=1,
+                     reliability=ReliabilityPolicy.RELIABLE,
+                     durability=DurabilityPolicy.TRANSIENT_LOCAL)
+self.map_pub = self.create_publisher(OccupancyGrid, 'map', latched)</pre>
+
+  <h3>QoS가 맞지 않으면: 조용히 안 온다</h3>
+  <p>발행자와 구독자의 QoS가 <strong>호환되지 않으면 연결 자체가 되지 않습니다</strong>. 오류로 멈추지 않고 경고 한 줄만 남기고 데이터가 오지 않으므로, 모르면 원인을 찾기 어렵습니다. 규칙은 "<strong>구독자가 발행자보다 더 많은 것을 요구하면 안 된다</strong>"입니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>발행자</th><th>구독자</th><th>결과</th></tr></thead>
+    <tbody>
+      <tr><td><code>RELIABLE</code></td><td><code>RELIABLE</code></td><td>연결됨</td></tr>
+      <tr><td><code>RELIABLE</code></td><td><code>BEST_EFFORT</code></td><td>연결됨 (구독자가 덜 요구)</td></tr>
+      <tr><td><code>BEST_EFFORT</code></td><td><code>BEST_EFFORT</code></td><td>연결됨</td></tr>
+      <tr><td><code>BEST_EFFORT</code></td><td><code>RELIABLE</code></td><td><strong>연결 안 됨</strong> (발행자가 줄 수 없는 것을 요구)</td></tr>
+      <tr><td><code>VOLATILE</code></td><td><code>TRANSIENT_LOCAL</code></td><td><strong>연결 안 됨</strong></td></tr>
+    </tbody>
+  </table></div>
+  <p>가장 흔한 경우가 센서 드라이버는 <code>BEST_EFFORT</code>로 발행하는데, 내 노드는 숫자 <code>10</code>(= <code>RELIABLE</code>)으로 구독하는 것입니다. <code>ros2 topic info -v</code>로 양쪽의 QoS를 비교할 수 있습니다.</p>
+  <pre><span class="p">$ </span>ros2 topic info -v /scan
+<span class="o">Type: sensor_msgs/msg/LaserScan
+
+Publisher count: 1
+
+Node name: lidar_driver
+...
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): KEEP_LAST (5)
+  Durability: VOLATILE
+  ...</span></pre>
+  <div class="note"><b class="t">ros2 topic echo는 왜 받아지나</b><code>ros2 topic echo</code>는 발행자의 QoS를 보고 호환되도록 맞춰 구독합니다. 그래서 "echo로는 보이는데 내 노드는 못 받는다"면 QoS를 가장 먼저 의심합니다.</div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>발행자는 구독자가 몇 개인지, 누구인지 알아야 하나?</summary><div class="a"><p>아닙니다. 발행자는 토픽 이름에 <code>publish()</code>할 뿐이고, 같은 이름을 구독하는 노드가 있으면 DDS가 연결해 줍니다. 구독자가 늘어나도 발행자 코드는 그대로입니다.</p></div></details>
+    <details class="q"><summary>센서 메시지의 <code>header.frame_id</code>는 왜 필요한가?</summary><div class="a"><p>측정값이 어느 좌표계 기준인지 알려 줍니다. 이 정보가 있어야 TF2로 라이다 기준 좌표를 로봇 중심이나 지도 기준 좌표로 바꿀 수 있습니다.</p></div></details>
+    <details class="q"><summary>Python으로만 노드를 쓰는데도 인터페이스 패키지는 왜 ament_cmake로 만드나?</summary><div class="a"><p><code>.msg</code> 정의에서 코드를 생성하는 rosidl 도구가 CMake로 동작하기 때문입니다. 노드 코드는 그대로 Python 패키지에 둡니다.</p></div></details>
+    <details class="q"><summary>라이다 드라이버는 BEST_EFFORT로 발행하는데 내 노드는 <code>create_subscription(LaserScan, 'scan', cb, 10)</code>으로 구독했다. 어떻게 되나? 해결 방법은?</summary><div class="a"><p>숫자 10은 RELIABLE이므로 구독자가 발행자보다 더 많이 요구하는 셈이라 연결되지 않고 데이터가 오지 않습니다. <code>qos_profile_sensor_data</code>처럼 BEST_EFFORT인 QoS로 구독하면 됩니다.</p></div></details>
+    <details class="q"><summary>지도를 한 번만 발행하는 노드가 있다. RViz2를 나중에 켜도 지도가 보이게 하려면 어떤 QoS가 필요한가?</summary><div class="a"><p>발행자와 구독자 모두 Durability를 <code>TRANSIENT_LOCAL</code>로 설정합니다. 발행자가 마지막 메시지를 보관했다가 나중에 연결된 구독자에게 보내 줍니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 8 ===================== -->
+<section class="lec" id="c8" data-num="8" data-group="Ⅳ. 통신 세 가지" data-title="Service">
+  <div class="manhead"><b>SERVICE(7)</b><span>8장</span><span>Services and Executors</span></div>
+  <h2>Service: 요청과 응답<small>.srv · 서버 · 클라이언트 · call_async · Future · wait_for_service · 실행기 · 교착 상태 · 콜백 그룹</small></h2>
+  <p class="lead">Service는 클라이언트가 <strong>요청</strong>을 보내면 서버가 처리해서 <strong>응답</strong>을 돌려주는 통신입니다. 코드 자체는 Topic만큼 간단하지만, "응답을 기다리는 동안 무슨 일이 일어나는가"를 이해하지 못하면 프로그램이 멈춰 버리는 문제를 만나게 됩니다.</p>
+
+  <h3>서비스의 동작 순서</h3>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 230" role="img" aria-label="클라이언트가 요청을 보내고 서버가 요청을 받아 처리 후 응답, 클라이언트가 응답 받음. 시간은 아래로 흐름">
+        <rect class="bx" x="70" y="10" width="160" height="34" rx="4"/><text class="tb c" x="150" y="27">클라이언트 노드</text>
+        <rect class="bx" x="410" y="10" width="160" height="34" rx="4"/><text class="tb c" x="490" y="27">서버 노드</text>
+        <path class="ln-x" d="M150 44 V220"/><path class="ln-x" d="M490 44 V220"/>
+        <path class="ln-a" d="M150 70 L486 100"/><text class="ts ta c" x="318" y="72">① 요청: a=1, b=2</text>
+        <rect class="bx-a" x="480" y="104" width="20" height="56" rx="2"/><text class="ts" x="512" y="124">② 콜백에서</text><text class="ts" x="512" y="142">처리</text>
+        <path class="ln" d="M486 164 L154 194"/><text class="ts c" x="318" y="166">③ 응답: sum=3</text>
+        <text class="ts" x="20" y="212">④ 결과 사용</text>
+        <text class="ts c" x="320" y="224">시간 ↓</text>
+      </svg>
+    </div>
+    <figcaption>요청 한 번에 응답 한 번. 서버는 요청이 올 때만 일하고, 여러 클라이언트의 요청을 받을 수 있습니다. 하나의 서비스 이름에는 서버가 하나만 있어야 합니다.</figcaption>
+  </figure>
+
+  <h3>.srv 정의</h3>
+  <p>서비스 형식은 <code>---</code> 위에 요청, 아래에 응답을 적습니다. 두 정수를 더하는 예제 서비스가 <code>example_interfaces</code> 패키지에 들어 있습니다.</p>
+  <pre><span class="p">$ </span>ros2 interface show example_interfaces/srv/AddTwoInts
+<span class="o">int64 a
+int64 b
+---
+int64 sum</span></pre>
+  <p>직접 정의할 때는 7장의 인터페이스 패키지에 <code>srv/</code> 디렉터리를 만들고 <code>.srv</code> 파일을 넣은 뒤, <code>rosidl_generate_interfaces</code>에 <code>"srv/파일.srv"</code>를 추가합니다. 코드에서는 <code>from my_interfaces.srv import 이름</code>으로 가져오고, <code>이름.Request()</code>, <code>이름.Response()</code>로 요청·응답 객체를 만듭니다.</p>
+
+  <h3>서버</h3>
+  <pre data-label="add_server.py">import rclpy
+from rclpy.node import Node
+from example_interfaces.srv import AddTwoInts
+
+
+class AddServer(Node):
+    def __init__(self):
+        super().__init__('add_two_ints_server')
+        self.srv = self.create_service(AddTwoInts, 'add_two_ints', self.on_request)
+
+    def on_request(self, request, response):        <span class="c"># 요청이 올 때마다 불림</span>
+        response.sum = request.a + request.b
+        self.get_logger().info(f'요청: {request.a} + {request.b}')
+        return response                             <span class="c"># 반환한 response 가 클라이언트로 감</span>
+
+
+def main():
+    rclpy.init()
+    rclpy.spin(AddServer())
+    rclpy.shutdown()</pre>
+  <p>서버 콜백은 요청 객체와 <strong>비어 있는 응답 객체</strong>를 받아서, 응답을 채워 반환합니다. 서버를 띄워 두고 4장의 <code>ros2 service call</code>로 먼저 시험해 볼 수 있습니다.</p>
+  <pre><span class="p">$ </span>ros2 service call /add_two_ints example_interfaces/srv/AddTwoInts "{a: 1, b: 2}"
+<span class="o">response:
+example_interfaces.srv.AddTwoInts_Response(sum=3)</span></pre>
+
+  <h3>클라이언트와 Future</h3>
+  <pre data-label="add_client.py">import sys
+import rclpy
+from rclpy.node import Node
+from example_interfaces.srv import AddTwoInts
+
+
+class AddClient(Node):
+    def __init__(self):
+        super().__init__('add_two_ints_client')
+        self.cli = self.create_client(AddTwoInts, 'add_two_ints')
+        while not self.cli.wait_for_service(timeout_sec=1.0):      <span class="c"># 서버가 뜰 때까지 대기</span>
+            self.get_logger().info('서버를 기다리는 중...')
+
+    def send(self, a, b):
+        req = AddTwoInts.Request()
+        req.a, req.b = a, b
+        return self.cli.call_async(req)             <span class="c"># 요청을 보내고 Future 를 바로 돌려받음</span>
+
+
+def main():
+    rclpy.init()
+    node = AddClient()
+    future = node.send(int(sys.argv[1]), int(sys.argv[2]))
+    rclpy.spin_until_future_complete(node, future)  <span class="c"># 응답이 올 때까지 spin</span>
+    node.get_logger().info(f'결과: {future.result().sum}')
+    node.destroy_node()
+    rclpy.shutdown()</pre>
+  <pre><span class="p">$ </span>ros2 run my_py_pkg add_client 1 2
+<span class="o">[INFO] [1735279881.788200266] [add_two_ints_client]: 결과: 3</span></pre>
+  <p><code>call_async()</code>는 요청을 보내자마자 <strong>Future</strong>라는 "나중에 결과가 담길 상자"를 돌려줍니다. 응답은 아직 오지 않았으므로 상자는 비어 있습니다. 응답 메시지가 도착해도 누군가 그것을 처리해 줘야 상자가 채워지는데, 그 일을 하는 것이 <code>spin</code>입니다. 그래서 <code>spin_until_future_complete()</code>로 "상자가 찰 때까지 spin"합니다.</p>
+  <div class="names"><span><code>async</code><i><b>async</b>hronous (비동기: 기다리지 않고 바로 돌아옴)</i></span><span><code>Future</code><i>future (미래에 채워질 결과)</i></span></div>
+  <div class="warn"><b class="t">wait_for_service를 빼먹으면</b>서버가 아직 안 떠 있을 때 요청을 보내면 그 요청은 그냥 사라집니다. Topic과 달리 Service는 "보낼 상대가 있는지" 먼저 확인하는 습관을 들입니다.</div>
+
+  <h3>실행기: spin 안에서 일어나는 일</h3>
+  <p><code>rclpy.spin(node)</code>은 내부적으로 <strong>실행기</strong>(executor)를 만들어 돌립니다. 기본 실행기는 <strong>스레드 하나</strong>로 동작하는 <code>SingleThreadedExecutor</code>입니다. 대기 중인 일(타이머, 도착한 메시지, 서비스 요청, 서비스 응답)을 하나 꺼내서 해당 콜백을 실행하고, <strong>그 콜백이 끝나야</strong> 다음 일을 꺼냅니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 170" role="img" aria-label="실행기의 대기열에 타이머, 메시지, 서비스 응답이 쌓이고 스레드 하나가 하나씩 꺼내 콜백을 실행">
+        <text class="tb" x="20" y="22">대기 중인 일</text>
+        <rect class="bx" x="20" y="36" width="110" height="30" rx="3"/><text class="ts c" x="75" y="51">타이머 만료</text>
+        <rect class="bx" x="20" y="72" width="110" height="30" rx="3"/><text class="ts c" x="75" y="87">/scan 메시지 도착</text>
+        <rect class="bx" x="20" y="108" width="110" height="30" rx="3"/><text class="ts c" x="75" y="123">서비스 응답 도착</text>
+        <rect class="bx-a" x="220" y="56" width="170" height="64" rx="6"/><text class="tb c" x="305" y="78">실행기 (스레드 1개)</text><text class="ts c" x="305" y="100">하나 꺼내서 콜백 실행</text>
+        <rect class="bx" x="470" y="40" width="150" height="30" rx="3"/><text class="ts tm c" x="545" y="55">on_timer()</text>
+        <rect class="bx-mute" x="470" y="76" width="150" height="30" rx="3"/><text class="ts tm c" x="545" y="91">on_scan()  … 대기</text>
+        <rect class="bx-mute" x="470" y="112" width="150" height="30" rx="3"/><text class="ts tm c" x="545" y="127">응답 처리  … 대기</text>
+        <path class="ln" d="M130 51 L216 76"/><path class="ln" d="M130 87 L216 88"/><path class="ln" d="M130 123 L216 100"/>
+        <path class="ln-a" d="M390 80 L466 56"/>
+        <text class="ts c" x="320" y="160">on_timer() 가 끝나기 전에는 다른 어떤 콜백도 실행되지 않음</text>
+      </svg>
+    </div>
+    <figcaption>기본 실행기는 콜백을 한 번에 하나씩만 실행합니다. 리눅스 첫걸음 9장의 프로세스가 CPU를 나눠 쓰는 것과 달리, 한 콜백이 오래 붙잡고 있으면 나머지는 모두 기다립니다.</figcaption>
+  </figure>
+
+  <h3>교착 상태: 콜백 안에서 응답을 기다리면</h3>
+  <p>이 구조 때문에 생기는 대표적인 문제가 있습니다. 타이머 콜백 안에서 서비스를 부르고 <strong>그 자리에서 응답을 기다리면</strong>, 프로그램이 영원히 멈춥니다.</p>
+  <pre data-label="잘못된 예">def on_timer(self):
+    result = self.cli.call(req)          <span class="c"># 동기 호출: 응답이 올 때까지 여기서 멈춤</span>
+    self.get_logger().info(f'{result.sum}')</pre>
+  <ol>
+    <li>실행기가 <code>on_timer()</code>를 실행합니다. 스레드 하나가 여기에 묶입니다.</li>
+    <li><code>call()</code>이 요청을 보내고 응답을 기다립니다.</li>
+    <li>응답이 도착합니다. 하지만 응답을 처리해 Future를 채우는 일도 <strong>같은 실행기의 몫</strong>이고, 실행기는 아직 <code>on_timer()</code>가 끝나기를 기다리는 중입니다.</li>
+    <li>콜백은 응답을, 실행기는 콜백을 서로 기다리며 둘 다 멈춥니다. 이것을 <strong>교착 상태</strong>(deadlock)라고 합니다.</li>
+  </ol>
+  <p>해결 방법은 두 가지입니다. 첫째는 콜백 안에서 <strong>기다리지 않는 것</strong>입니다. <code>call_async()</code>로 보내고, 응답이 오면 불릴 함수를 Future에 등록해 둔 뒤 콜백을 바로 끝냅니다.</p>
+  <pre data-label="올바른 예 1: 기다리지 않고 콜백 등록">def on_timer(self):
+    future = self.cli.call_async(req)
+    future.add_done_callback(self.on_response)   <span class="c"># 응답이 오면 on_response 를 불러 달라</span>
+                                                 <span class="c"># on_timer 는 바로 끝남 → 실행기가 자유로워짐</span>
+def on_response(self, future):
+    self.get_logger().info(f'sum = {future.result().sum}')</pre>
+  <p>둘째는 실행기에 <strong>스레드를 여러 개</strong> 주는 것입니다. <code>MultiThreadedExecutor</code>를 쓰고, 동시에 실행되어도 되는 콜백들을 <strong>콜백 그룹</strong>으로 묶어 알려 줍니다.</p>
+  <pre data-label="올바른 예 2: 멀티스레드 실행기">from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
+
+<span class="c"># 노드 생성자에서</span>
+group = ReentrantCallbackGroup()                 <span class="c"># 이 그룹의 콜백은 동시에 실행되어도 됨</span>
+self.cli = self.create_client(AddTwoInts, 'add_two_ints', callback_group=group)
+self.timer = self.create_timer(1.0, self.on_timer, callback_group=group)
+
+<span class="c"># main 에서</span>
+executor = MultiThreadedExecutor()
+executor.add_node(node)
+executor.spin()</pre>
+  <div class="tbl"><table>
+    <thead><tr><th>콜백 그룹</th><th>그룹 안의 콜백끼리</th><th>쓰는 경우</th></tr></thead>
+    <tbody>
+      <tr><td><code>MutuallyExclusiveCallbackGroup</code> (기본)</td><td>한 번에 하나만 실행</td><td>같은 변수를 건드리는 콜백들. 동시에 실행되면 값이 꼬일 수 있음 (IPC 5장의 동기화 문제)</td></tr>
+      <tr><td><code>ReentrantCallbackGroup</code></td><td>동시에 여러 개 실행 가능</td><td>서로 독립적인 콜백, 콜백 안에서 다른 응답을 기다려야 하는 경우</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><b class="t">콜백은 짧게</b>멀티스레드가 아니더라도 원칙은 같습니다. 콜백 안에서 <code>time.sleep()</code>, 무거운 계산, 응답 기다리기를 하면 그동안 같은 노드의 다른 콜백(센서 수신, 제어 타이머)이 모두 멈춥니다. 오래 걸리는 일은 9장의 Action으로 맡기거나, 다른 노드로 분리합니다.</div>
+  <div class="names"><span><code>executor</code><i>executor (실행하는 것)</i></span><span><code>deadlock</code><i>dead + lock (서로 막혀 영원히 멈춤)</i></span><span><code>reentrant</code><i>re-entrant (실행 중에 다시 들어올 수 있음)</i></span><span><code>mutually exclusive</code><i>상호 배타적 (동시에 하나만)</i></span></div>
+
+  <h3>Topic과 Service, 언제 무엇을 쓰나</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>상황</th><th>선택</th></tr></thead>
+    <tbody>
+      <tr><td>주기적으로 계속 나오는 데이터</td><td>Topic. 서비스로 매번 물어보면 요청·응답 왕복만큼 느리고 낭비</td></tr>
+      <tr><td>가끔 하는 설정 변경, 명령, 질문 ("지도 저장", "모터 켜기", "현재 모드는?")</td><td>Service</td></tr>
+      <tr><td>처리에 몇 초 이상 걸리고 진행 상황이 궁금한 일</td><td>Service는 그동안 응답이 없어 상태를 알 수 없고 취소도 못 함 → 9장 Action</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>서비스 서버의 콜백은 무엇을 받고 무엇을 반환하나?</summary><div class="a"><p>요청 객체와 비어 있는 응답 객체를 받고, 응답 객체의 필드를 채워서 반환합니다. 반환한 응답이 클라이언트로 전달됩니다.</p></div></details>
+    <details class="q"><summary><code>call_async()</code>가 돌려주는 Future는 언제 채워지나?</summary><div class="a"><p>응답이 도착하고, 실행기(spin)가 그 응답을 처리했을 때 채워집니다. spin하지 않으면 응답이 와도 Future는 비어 있습니다.</p></div></details>
+    <details class="q"><summary>기본 실행기로 spin하는 노드의 타이머 콜백 안에서 <code>self.cli.call(req)</code>를 부르면 왜 멈추나?</summary><div class="a"><p>기본 실행기는 스레드 하나라서 타이머 콜백이 끝나야 다음 일을 처리합니다. <code>call()</code>은 응답을 기다리는데, 응답을 처리할 실행기는 콜백이 끝나기를 기다리므로 서로를 기다리는 교착 상태가 됩니다.</p></div></details>
+    <details class="q"><summary>위 문제를 해결하는 방법 두 가지는?</summary><div class="a"><p>① <code>call_async()</code> 후 <code>add_done_callback()</code>으로 응답 처리 함수를 등록하고 콜백을 바로 끝낸다. ② <code>MultiThreadedExecutor</code>와 <code>ReentrantCallbackGroup</code>을 써서 다른 스레드가 응답을 처리할 수 있게 한다.</p></div></details>
+    <details class="q"><summary>로봇의 배터리 잔량을 다른 노드들이 계속 알아야 한다. 서비스로 만들면 어떤 점이 나쁜가?</summary><div class="a"><p>궁금한 노드마다 계속 요청을 보내야 하므로 요청·응답 왕복이 낭비되고 느립니다. 계속 변하는 값은 Topic으로 발행해 필요한 노드가 구독하게 하는 것이 알맞습니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 9 ===================== -->
+<section class="lec" id="c9" data-num="9" data-group="Ⅳ. 통신 세 가지" data-title="Action">
+  <div class="manhead"><b>ACTION(7)</b><span>9장</span><span>Actions</span></div>
+  <h2>Action: 오래 걸리는 일 맡기기<small>goal · feedback · result · 내부 구조 · 목표 상태 · 취소 · ActionServer · ActionClient</small></h2>
+  <p class="lead">"목표 지점까지 이동", "로봇팔로 물체 집기"처럼 몇 초에서 몇 분이 걸리는 일은 Topic이나 Service만으로는 다루기 어렵습니다. Action은 일을 맡기고, 진행 상황을 보고받고, 필요하면 도중에 취소할 수 있게 해 주는 통신입니다.</p>
+
+  <h3>Topic과 Service로는 부족한 이유</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>요구 사항</th><th>Topic</th><th>Service</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td>일을 맡기고 수락 여부 확인</td><td>보내기만 하고 받았는지 모름</td><td>가능</td><td>가능 (goal 수락/거절)</td></tr>
+      <tr><td>진행 상황 보고</td><td>따로 토픽을 만들어야 함</td><td>응답이 올 때까지 아무 정보 없음</td><td>가능 (feedback)</td></tr>
+      <tr><td>도중에 취소</td><td>불가</td><td>불가</td><td>가능 (cancel)</td></tr>
+      <tr><td>최종 결과와 성공 여부</td><td>따로 만들어야 함</td><td>가능</td><td>가능 (result + 상태)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>내부 구조: 서비스와 토픽의 조합</h3>
+  <p>Action은 완전히 새로운 통신이 아니라, <strong>서비스 세 개와 토픽 두 개</strong>를 정해진 규칙으로 묶은 것입니다. <code>ros2 action</code> 명령과 액션 라이브러리가 이것들을 하나처럼 다뤄 줍니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 260" role="img" aria-label="액션 클라이언트와 서버 사이에 목표 서비스, 취소 서비스, 결과 서비스, 피드백 토픽, 상태 토픽이 있음">
+        <rect class="bx" x="20" y="20" width="140" height="220" rx="6"/><text class="tb c" x="90" y="120">액션</text><text class="tb c" x="90" y="140">클라이언트</text>
+        <rect class="bx" x="480" y="20" width="140" height="220" rx="6"/><text class="tb c" x="550" y="120">액션</text><text class="tb c" x="550" y="140">서버</text>
+        <path class="ln-a" d="M160 46 L476 46"/><text class="ts ta c" x="318" y="32">① 목표 서비스 (send_goal): 목표 → 수락/거절</text>
+        <path class="ln-ok" d="M480 92 L164 92"/><text class="ts tok c" x="322" y="78">② 피드백 토픽 (feedback): 진행 상황, 여러 번</text>
+        <path class="ln" d="M480 136 L164 136"/><text class="ts c" x="322" y="122">상태 토픽 (status): 목표들의 현재 상태</text>
+        <path class="ln-a" d="M160 182 L476 182"/><text class="ts ta c" x="318" y="168">③ 결과 서비스 (get_result): 결과 요청 → 끝나면 응답</text>
+        <path class="ln-x" d="M160 226 L476 226"/><text class="ts c" x="318" y="212">취소 서비스 (cancel_goal): 필요할 때만</text>
+      </svg>
+    </div>
+    <figcaption>액션 하나는 서비스 3개(목표, 결과, 취소)와 토픽 2개(피드백, 상태)로 이루어집니다. 클라이언트는 목표가 수락되자마자 결과 서비스에 요청을 보내 두고, 서버는 일이 끝날 때 그 요청에 응답합니다. 그 사이에 피드백이 토픽으로 계속 옵니다.</figcaption>
+  </figure>
+  <div class="note"><b class="t">숨은 이름</b>이 서비스와 토픽은 <code>/turtle1/rotate_absolute/_action/send_goal</code>, <code>/turtle1/rotate_absolute/_action/feedback</code>처럼 <code>_action</code>이 붙은 이름을 가집니다. 밑줄로 시작하는 이름은 숨김 처리되어 <code>ros2 topic list</code>에 보이지 않고, <code>--include-hidden-topics</code>를 붙여야 보입니다.</div>
+
+  <h3>목표의 상태</h3>
+  <p>서버에 보낸 목표 하나하나는 정해진 상태를 거칩니다. 4장에서 <code>send_goal</code>의 마지막 줄 "Goal finished with status: SUCCEEDED"가 이 상태입니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 200" role="img" aria-label="목표는 수락되면 실행 중이 되고, 성공, 중단, 취소 중 하나로 끝남. 수락되지 않으면 거절됨. 실행 중 취소 요청을 받으면 취소 중을 거쳐 취소됨">
+        <rect class="bx" x="10" y="80" width="100" height="40" rx="20"/><text class="t c" x="60" y="100">목표 도착</text>
+        <rect class="bx" x="150" y="80" width="110" height="40" rx="4"/><text class="t tm c" x="205" y="100">ACCEPTED</text>
+        <rect class="bx-a" x="300" y="80" width="120" height="40" rx="4"/><text class="t tm c" x="360" y="100">EXECUTING</text>
+        <rect class="bx-ok" x="480" y="20" width="140" height="34" rx="4"/><text class="t tm c" x="550" y="37">SUCCEEDED</text>
+        <rect class="bx" x="480" y="70" width="140" height="34" rx="4"/><text class="t tm c" x="550" y="87">ABORTED</text>
+        <rect class="bx" x="300" y="150" width="120" height="34" rx="4"/><text class="t tm c" x="360" y="167">CANCELING</text>
+        <rect class="bx" x="480" y="150" width="140" height="34" rx="4"/><text class="t tm c" x="550" y="167">CANCELED</text>
+        <rect class="bx-mute" x="150" y="150" width="110" height="34" rx="4"/><text class="t tm c" x="205" y="167">거절됨</text>
+        <path class="ln" d="M110 100 L146 100"/><path class="ln" d="M260 100 L296 100"/>
+        <path class="ln-ok" d="M420 92 L476 40"/><path class="ln" d="M420 100 L476 87"/>
+        <path class="ln" d="M360 120 L360 146"/><path class="ln" d="M420 167 L476 167"/>
+        <path class="ln" d="M60 120 L60 167 L146 167"/>
+        <text class="ts c" x="455" y="22">성공</text>
+        <text class="ts" x="430" y="122">서버가 포기</text>
+        <text class="ts" x="368" y="138">취소 요청</text>
+      </svg>
+    </div>
+    <figcaption>목표 하나의 상태 변화. 서버가 목표를 받지 않으면 거절(REJECTED)되고, 받으면 실행 중을 거쳐 성공(SUCCEEDED), 서버가 스스로 포기(ABORTED), 클라이언트 요청으로 취소(CANCELED) 중 하나로 끝납니다.</figcaption>
+  </figure>
+  <div class="names"><span><code>accepted</code><i>수락됨</i></span><span><code>succeeded</code><i>성공함</i></span><span><code>aborted</code><i>abort (중단하다): 서버 쪽 사정으로 실패</i></span><span><code>canceled</code><i>취소됨: 클라이언트가 요청</i></span></div>
+
+  <h3>.action 정의</h3>
+  <pre><span class="p">$ </span>ros2 interface show action_tutorials_interfaces/action/Fibonacci
+<span class="o">int32 order
+---
+int32[] sequence
+---
+int32[] partial_sequence</span></pre>
+  <p>위에서부터 <strong>목표, 결과, 피드백</strong> 순서입니다. 피보나치 수열을 <code>order</code>번째 항까지 1초에 하나씩 계산하면서, 지금까지 계산한 부분(<code>partial_sequence</code>)을 피드백으로 보내고, 다 끝나면 전체 수열(<code>sequence</code>)을 결과로 보내는 예제입니다. 직접 정의할 때는 인터페이스 패키지의 <code>action/</code>에 <code>.action</code> 파일을 두고 <code>rosidl_generate_interfaces</code>에 추가합니다.</p>
+
+  <h3>액션 서버</h3>
+  <pre data-label="fibonacci_server.py">import time
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionServer
+from action_tutorials_interfaces.action import Fibonacci
+
+
+class FibonacciServer(Node):
+    def __init__(self):
+        super().__init__('fibonacci_action_server')
+        self._server = ActionServer(self, Fibonacci, 'fibonacci', self.execute)
+
+    def execute(self, goal_handle):                       <span class="c"># 수락된 목표마다 불림</span>
+        self.get_logger().info(f'목표 실행: order={goal_handle.request.order}')
+        feedback = Fibonacci.Feedback()
+        feedback.partial_sequence = [0, 1]
+
+        for i in range(1, goal_handle.request.order):
+            feedback.partial_sequence.append(
+                feedback.partial_sequence[i] + feedback.partial_sequence[i - 1])
+            goal_handle.publish_feedback(feedback)        <span class="c"># ② 피드백 발행</span>
+            time.sleep(1)
+
+        goal_handle.succeed()                             <span class="c"># 상태를 SUCCEEDED 로</span>
+        result = Fibonacci.Result()
+        result.sequence = feedback.partial_sequence
+        return result                                     <span class="c"># ③ 결과</span></pre>
+  <p><code>goal_handle</code>은 목표 하나를 가리키는 손잡이입니다. 목표 내용(<code>goal_handle.request</code>)을 읽고, 피드백을 보내고, 최종 상태(<code>succeed()</code>, <code>abort()</code>, <code>canceled()</code>)를 정하는 일을 모두 이것으로 합니다.</p>
+
+  <h3>액션 클라이언트: 콜백의 연쇄</h3>
+  <pre data-label="fibonacci_client.py">import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionClient
+from action_tutorials_interfaces.action import Fibonacci
+
+
+class FibonacciClient(Node):
+    def __init__(self):
+        super().__init__('fibonacci_action_client')
+        self._client = ActionClient(self, Fibonacci, 'fibonacci')
+
+    def send_goal(self, order):
+        goal = Fibonacci.Goal()
+        goal.order = order
+        self._client.wait_for_server()
+        future = self._client.send_goal_async(goal, feedback_callback=self.on_feedback)
+        future.add_done_callback(self.on_goal_response)       <span class="c"># ① 수락/거절 답이 오면</span>
+
+    def on_goal_response(self, future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().info('목표 거절됨')
+            return
+        self.get_logger().info('목표 수락됨')
+        goal_handle.get_result_async().add_done_callback(self.on_result)   <span class="c"># ③ 결과가 오면</span>
+
+    def on_feedback(self, feedback_msg):                      <span class="c"># ② 피드백이 올 때마다</span>
+        self.get_logger().info(f'피드백: {list(feedback_msg.feedback.partial_sequence)}')
+
+    def on_result(self, future):
+        result = future.result().result
+        self.get_logger().info(f'결과: {list(result.sequence)}')
+        rclpy.shutdown()                                      <span class="c"># 결과를 받았으니 종료</span>
+
+
+def main():
+    rclpy.init()
+    node = FibonacciClient()
+    node.send_goal(10)
+    rclpy.spin(node)</pre>
+  <pre><span class="o">[INFO] [fibonacci_action_client]: 목표 수락됨
+[INFO] [fibonacci_action_client]: 피드백: [0, 1, 1]
+[INFO] [fibonacci_action_client]: 피드백: [0, 1, 1, 2]
+...
+[INFO] [fibonacci_action_client]: 결과: [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55]</span></pre>
+  <p>클라이언트는 어디에서도 기다리지 않습니다. 8장의 교훈대로 "결과가 오면 이 함수를 불러 달라"를 연달아 등록할 뿐이고, 실제 호출은 <code>spin()</code>이 해 줍니다. 그래서 액션을 기다리는 동안에도 같은 노드의 다른 콜백(센서 수신 등)이 정상적으로 돌아갑니다.</p>
+
+  <h3>목표 거절과 취소 받기</h3>
+  <p>서버는 목표를 받을지 정하는 함수와, 취소 요청을 받을지 정하는 함수를 추가로 등록할 수 있습니다. 실행 중에 취소 요청이 들어왔는지는 <code>goal_handle.is_cancel_requested</code>로 확인합니다.</p>
+  <pre data-label="서버에 거절·취소 처리 추가">from rclpy.action import ActionServer, GoalResponse, CancelResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+
+self._server = ActionServer(
+    self, Fibonacci, 'fibonacci', self.execute,
+    goal_callback=self.on_goal,
+    cancel_callback=self.on_cancel,
+    callback_group=ReentrantCallbackGroup())
+
+def on_goal(self, goal_request):
+    if goal_request.order &gt; 50:
+        return GoalResponse.REJECT          <span class="c"># 너무 큰 목표는 거절</span>
+    return GoalResponse.ACCEPT
+
+def on_cancel(self, goal_handle):
+    return CancelResponse.ACCEPT
+
+<span class="c"># execute 의 반복문 안에서</span>
+if goal_handle.is_cancel_requested:
+    goal_handle.canceled()                  <span class="c"># 상태를 CANCELED 로</span>
+    return Fibonacci.Result(sequence=feedback.partial_sequence)</pre>
+  <div class="warn"><b class="t">취소가 안 받아질 때</b>위 서버의 <code>execute</code>는 <code>time.sleep()</code>으로 실행기를 붙잡고 있습니다. 기본 실행기(스레드 하나)라면 그동안 취소 요청을 처리할 스레드가 없어서, 취소가 일이 다 끝난 뒤에야 처리됩니다. 8장처럼 <code>MultiThreadedExecutor</code>로 spin하고 콜백 그룹을 <code>ReentrantCallbackGroup</code>으로 지정해야 실행 도중에 취소가 들어옵니다.</div>
+
+  <h3>세 가지 통신 정리</h3>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>Topic</th><th>Service</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td>정의 파일</td><td><code>.msg</code></td><td><code>.srv</code> (요청 / 응답)</td><td><code>.action</code> (목표 / 결과 / 피드백)</td></tr>
+      <tr><td>Python 생성</td><td><code>create_publisher</code><br><code>create_subscription</code></td><td><code>create_service</code><br><code>create_client</code></td><td><code>ActionServer(...)</code><br><code>ActionClient(...)</code></td></tr>
+      <tr><td>보내기</td><td><code>publish(msg)</code></td><td><code>call_async(req)</code></td><td><code>send_goal_async(goal)</code></td></tr>
+      <tr><td>명령줄 시험</td><td><code>ros2 topic pub</code></td><td><code>ros2 service call</code></td><td><code>ros2 action send_goal</code></td></tr>
+      <tr><td>로봇에서의 예</td><td>센서, <code>/cmd_vel</code>, <code>/odom</code>, <code>/tf</code></td><td>지도 저장, 설정 변경, 초기화</td><td>목표 지점까지 이동, 로봇팔 궤적 실행</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>Action은 내부적으로 어떤 통신들로 이루어지나?</summary><div class="a"><p>목표·결과·취소용 서비스 3개와, 피드백·상태용 토픽 2개로 이루어집니다.</p></div></details>
+    <details class="q"><summary>목표 상태 ABORTED와 CANCELED의 차이는?</summary><div class="a"><p>ABORTED는 서버가 스스로 목표 달성을 포기한 것(예: 경로를 찾을 수 없음)이고, CANCELED는 클라이언트의 취소 요청에 따라 멈춘 것입니다.</p></div></details>
+    <details class="q"><summary>.action 파일의 세 부분은 위에서부터 무엇인가?</summary><div class="a"><p>목표(goal), 결과(result), 피드백(feedback)입니다.</p></div></details>
+    <details class="q"><summary>액션 클라이언트 코드에서 결과를 받을 때까지 기다리는 줄이 없는데 어떻게 결과를 받나?</summary><div class="a"><p><code>add_done_callback()</code>으로 "목표 응답이 오면", "결과가 오면" 부를 함수를 등록해 두고, <code>spin()</code>이 각 응답이 도착했을 때 그 함수들을 불러 줍니다.</p></div></details>
+    <details class="q"><summary>"충전소로 이동"을 Service로 만들면 생기는 문제는?</summary><div class="a"><p>이동하는 동안 클라이언트는 아무 정보도 받지 못하고, 중간에 다른 일이 생겨도 취소할 수 없습니다. 서버 콜백이 오래 붙잡혀 다른 요청도 처리하지 못합니다. 진행 보고와 취소가 되는 Action이 알맞습니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 10 ===================== -->
+<section class="lec" id="c10" data-num="10" data-group="Ⅴ. 워크스페이스 구조" data-title="노드, 런치, 설정 파일">
+  <div class="manhead"><b>LAUNCH(1)</b><span>10장</span><span>Nodes, Launch Files and Configuration</span></div>
+  <h2>노드, 런치, 설정 파일로 나누는 구조<small>코드와 설정의 분리 · 패키지 배치 · 파라미터 · --ros-args · YAML · 리매핑 · launch 파일 · launch 인자 · data_files</small></h2>
+  <p class="lead">실제 로봇 시스템은 노드가 수십 개이고, 노드마다 설정값이 수십 개입니다. ROS 2 프로젝트는 이것을 <strong>노드(코드)</strong>, <strong>설정 파일(값)</strong>, <strong>launch 파일(실행 구성)</strong> 세 가지로 나눠 관리합니다. 이 장에서는 왜 이렇게 나누는지, 각각을 어떻게 쓰는지, 그리고 워크스페이스 안에 어떻게 배치하는지를 다룹니다.</p>
+
+  <h3>왜 나누나</h3>
+  <p>모든 것을 노드 코드 안에 넣으면 처음에는 간단합니다. 하지만 시스템이 커지면 곧 다음 문제가 생깁니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>상황</th><th>코드에 다 넣었을 때</th><th>나눠 두었을 때</th></tr></thead>
+    <tbody>
+      <tr><td>최대 속도를 0.5에서 0.3으로 낮추고 싶다</td><td>코드를 찾아 고치고 다시 빌드</td><td>YAML 파일의 숫자 하나만 수정</td></tr>
+      <tr><td>시뮬레이션과 실제 로봇에서 값이 다르다</td><td>코드에 if문으로 분기하거나 코드를 두 벌 관리</td><td>같은 노드에 설정 파일만 바꿔 줌</td></tr>
+      <tr><td>노드 10개를 함께 실행해야 한다</td><td>터미널 10개를 열고 순서대로 <code>ros2 run</code></td><td><code>ros2 launch</code> 한 줄, <kbd>Ctrl</kbd>+<kbd>C</kbd> 한 번으로 전부 종료</td></tr>
+      <tr><td>다른 사람의 노드를 내 토픽 이름에 연결해야 한다</td><td>남의 코드를 고침</td><td>launch 파일에서 이름만 바꿔 연결(리매핑)</td></tr>
+      <tr><td>같은 노드를 로봇 두 대에 쓰고 싶다</td><td>코드를 복사해 토픽 이름을 고침</td><td>launch 파일에서 네임스페이스만 다르게 두 번 실행</td></tr>
+    </tbody>
+  </table></div>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 200" role="img" aria-label="launch 파일이 어떤 노드를 어떤 설정 파일과 이름으로 실행할지 정하고, 노드는 무엇을 할지, 설정 파일은 어떤 값으로 할지를 담당">
+        <rect class="bx-a" x="200" y="14" width="240" height="56" rx="6"/><text class="tb c" x="320" y="34">launch 파일</text><text class="ts c" x="320" y="54">무엇을, 어떤 이름과 설정으로 함께 실행할지</text>
+        <rect class="bx" x="40" y="120" width="250" height="60" rx="6"/><text class="tb c" x="165" y="140">노드 (Python 코드)</text><text class="ts c" x="165" y="160">무엇을 하는가: 알고리즘, 통신</text>
+        <rect class="bx" x="350" y="120" width="250" height="60" rx="6"/><text class="tb c" x="475" y="140">설정 파일 (YAML)</text><text class="ts c" x="475" y="160">어떤 값으로: 속도, 임계값, 장치 경로</text>
+        <path class="ln" d="M280 70 L190 116"/><path class="ln" d="M360 70 L450 116"/>
+        <text class="ts c" x="200" y="96">실행</text><text class="ts c" x="440" y="96">넣어 줌</text>
+      </svg>
+    </div>
+    <figcaption>노드는 "무엇을 하는가"만 알고, 구체적인 값과 연결 방법은 바깥에서 받습니다. 그래서 같은 노드 코드를 다른 로봇, 다른 환경, 다른 시스템에 그대로 가져다 쓸 수 있습니다.</figcaption>
+  </figure>
+
+  <h3>패키지와 워크스페이스 안의 배치</h3>
+  <p>한 패키지 안에서는 노드 코드, launch 파일, 설정 파일을 디렉터리로 나눠 둡니다.</p>
+  <pre><span class="o">my_robot_pkg/
+├── package.xml
+├── setup.py              </span><span class="c"># launch/, config/ 도 설치하도록 적음 (아래)</span><span class="o">
+├── my_robot_pkg/         </span><span class="c"># 노드 코드</span><span class="o">
+│   ├── __init__.py
+│   ├── driver.py
+│   └── controller.py
+├── launch/               </span><span class="c"># 실행 구성</span><span class="o">
+│   └── robot.launch.py
+└── config/               </span><span class="c"># 설정값</span><span class="o">
+    ├── params_sim.yaml
+    └── params_real.yaml</span></pre>
+  <p>프로젝트가 커지면 역할별로 패키지를 나누는 것이 일반적입니다. 이름은 자유지만 다음과 같은 나눔이 흔합니다.</p>
+  <pre><span class="o">~/ros2_ws/src/
+├── my_robot_interfaces/   </span><span class="c"># 직접 정의한 msg · srv · action (7장)</span><span class="o">
+├── my_robot_description/  </span><span class="c"># 로봇 모델 URDF (11장)</span><span class="o">
+├── my_robot_driver/       </span><span class="c"># 센서·모터 드라이버 노드</span><span class="o">
+├── my_robot_control/      </span><span class="c"># 판단·제어 노드</span><span class="o">
+└── my_robot_bringup/      </span><span class="c"># launch 파일과 설정 파일만 모은 패키지</span></pre>
+  <p><strong>bringup</strong> 패키지는 노드 코드 없이 "전체 시스템을 어떤 구성으로 띄울지"만 담습니다. 대회용, 시험용, 시뮬레이션용 launch 파일을 여기 모아 두면, 다른 패키지의 코드는 건드리지 않고 실행 구성만 바꿀 수 있습니다.</p>
+  <div class="names"><span><code>bringup</code><i>bring up (시스템을 일으켜 세우다, 기동하다)</i></span><span><code>config</code><i><b>config</b>uration (설정)</i></span></div>
+
+  <h3>파라미터: 코드 밖으로 뺀 설정값</h3>
+  <p>노드 안에서 바깥에서 받을 값을 <strong>파라미터</strong>로 선언합니다.</p>
+  <pre data-label="my_robot_pkg/controller.py (일부)">class Controller(Node):
+    def __init__(self):
+        super().__init__('controller')
+        self.declare_parameter('max_speed', 0.5)          <span class="c"># 이름과 기본값 (기본값의 형식이 파라미터 형식)</span>
+        self.declare_parameter('robot_name', 'robot1')
+
+        self.max_speed = self.get_parameter('max_speed').value
+        name = self.get_parameter('robot_name').value
+        self.get_logger().info(f'{name}: 최대 속도 {self.max_speed} m/s')</pre>
+  <ul>
+    <li>ROS 2에서는 파라미터를 <strong>먼저 선언</strong>(<code>declare_parameter</code>)해야 읽고 쓸 수 있습니다. 선언하지 않은 이름을 읽으면 오류가 납니다. 오타로 엉뚱한 이름을 쓰는 실수를 막기 위해서입니다.</li>
+    <li>형식은 <code>bool</code>, <code>int</code>, <code>float</code>, <code>string</code>과 각각의 배열이 있습니다. 기본값이 <code>0.5</code>면 float 파라미터가 되어, 나중에 <code>1</code>(정수)을 넣으면 형식 오류가 납니다. <code>1.0</code>으로 넣어야 합니다.</li>
+    <li>위 코드는 값을 생성자에서 <strong>한 번만</strong> 읽습니다. 실행 중에 <code>ros2 param set</code>(4장)으로 바꾼 값을 반영하려면 쓸 때마다 다시 읽거나, <code>add_on_set_parameters_callback()</code>으로 바뀔 때 알림을 받아야 합니다.</li>
+  </ul>
+
+  <h3>실행할 때 값 넣기: --ros-args</h3>
+  <p><code>ros2 run</code> 뒤에 <code>--ros-args</code>를 쓰면, 그 뒤는 프로그램이 아니라 ROS 2가 해석하는 인자가 됩니다. launch 파일이 내부에서 하는 일도 결국 이것입니다.</p>
+  <pre><span class="p">$ </span>ros2 run my_robot_pkg controller --ros-args -p max_speed:=1.2 -p robot_name:=scout
+<span class="o">[INFO] [controller]: scout: 최대 속도 1.2 m/s</span></pre>
+  <div class="tbl"><table>
+    <thead><tr><th><code>--ros-args</code> 뒤에</th><th>원래 이름</th><th>하는 일</th></tr></thead>
+    <tbody>
+      <tr><td><code>-p 이름:=값</code></td><td class="onm"><b>p</b>aram</td><td>파라미터 값 지정</td></tr>
+      <tr><td><code>--params-file 파일.yaml</code></td><td class="onm">params file</td><td>YAML 파일에서 파라미터를 한꺼번에 읽음</td></tr>
+      <tr><td><code>-r 원래이름:=새이름</code></td><td class="onm"><b>r</b>emap</td><td>토픽·서비스 이름 바꾸기 (아래)</td></tr>
+      <tr><td><code>-r __node:=새이름</code></td><td class="onm">remap node</td><td>노드 이름 바꾸기</td></tr>
+      <tr><td><code>-r __ns:=/네임스페이스</code></td><td class="onm">remap <b>n</b>ame<b>s</b>pace</td><td>노드를 네임스페이스 안에 넣기 (3장)</td></tr>
+      <tr><td><code>--log-level debug</code></td><td class="onm">log level</td><td>로그 출력 수준 (5장)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>설정 파일: YAML</h3>
+  <p>파라미터가 많아지면 YAML 파일로 모읍니다. 4장의 <code>ros2 param dump</code>가 출력하던 것과 같은 형식입니다.</p>
+  <pre data-label="config/params_real.yaml">controller:                   <span class="c"># 노드 이름</span>
+  ros__parameters:            <span class="c"># "여기부터 ROS 파라미터" 표시 (밑줄 두 개)</span>
+    max_speed: 1.2
+    robot_name: "scout"
+    gains: [1.0, 0.1, 0.05]   <span class="c"># 배열</span>
+
+driver:
+  ros__parameters:
+    port: "/dev/ttyUSB0"      <span class="c"># 장치 경로 (리눅스 첫걸음 6장)</span>
+    baudrate: 115200
+
+/**:                          <span class="c"># 모든 노드에 공통</span>
+  ros__parameters:
+    use_sim_time: false</pre>
+  <pre><span class="p">$ </span>ros2 run my_robot_pkg controller --ros-args --params-file config/params_real.yaml</pre>
+  <p>한 파일에 여러 노드의 설정을 함께 적을 수 있고, 각 노드는 자기 이름 아래의 값만 가져갑니다. 시뮬레이션용(<code>params_sim.yaml</code>)과 실제 로봇용(<code>params_real.yaml</code>)을 따로 두면 같은 코드를 두 환경에서 그대로 씁니다.</p>
+  <div class="warn"><b class="t">값이 안 들어갈 때</b>YAML의 맨 위 이름이 <strong>실제 노드 이름</strong>과 정확히 같아야 합니다. 네임스페이스가 있으면 <code>/robot2/controller:</code>처럼 앞에 붙입니다. launch 파일에서 노드 이름이나 네임스페이스를 바꿨다면 YAML도 맞춰야 합니다. 이름이 다르면 오류 없이 그냥 기본값이 쓰이므로, <code>ros2 param get</code>으로 실제 값을 확인하는 습관을 들입니다.</div>
+
+  <h3>리매핑: 코드를 고치지 않고 연결 바꾸기</h3>
+  <p><strong>리매핑</strong>(remapping)은 노드가 쓰는 토픽·서비스 이름을 실행할 때 바꾸는 기능입니다. 예를 들어 라이다 드라이버는 <code>/scan</code>으로 발행하는데, 가져다 쓰려는 장애물 인식 노드는 <code>/lidar/scan</code>을 구독하도록 작성되어 있다면, 둘 중 하나의 코드를 고치는 대신 실행할 때 이름을 이어 붙입니다.</p>
+  <pre><span class="p">$ </span>ros2 run my_robot_pkg obstacle_detector --ros-args -r /lidar/scan:=/scan
+<span class="p">$ </span>ros2 run turtlesim turtle_teleop_key --ros-args -r /turtle1/cmd_vel:=/turtle2/cmd_vel   <span class="c"># 두 번째 거북이 조종</span></pre>
+  <div class="names"><span><code>remap</code><i>re + map (다시 연결하다)</i></span><span><code>:=</code><i>"왼쪽을 오른쪽으로" (ROS 인자 표기)</i></span></div>
+
+  <h3>launch 파일: 여러 노드를 한 번에</h3>
+  <p><strong>launch 파일</strong>은 "어떤 노드들을, 어떤 이름·네임스페이스·파라미터·리매핑으로 실행할지"를 적어 둔 Python 파일입니다. 아래는 거북이 두 마리를 띄우고, <code>mimic</code> 노드가 첫 번째 거북이의 위치를 받아 두 번째 거북이에게 같은 움직임을 명령하게 하는 예입니다.</p>
+  <pre data-label="launch/turtle_mimic.launch.py">from launch import LaunchDescription
+from launch_ros.actions import Node
+
+
+def generate_launch_description():          <span class="c"># ros2 launch 가 이 함수를 부름 (이름 고정)</span>
+    return LaunchDescription([
+        Node(package='turtlesim', executable='turtlesim_node',
+             namespace='turtlesim1', name='sim'),
+        Node(package='turtlesim', executable='turtlesim_node',
+             namespace='turtlesim2', name='sim'),
+        Node(package='turtlesim', executable='mimic', name='mimic',
+             remappings=[
+                 ('/input/pose', '/turtlesim1/turtle1/pose'),
+                 ('/output/cmd_vel', '/turtlesim2/turtle1/cmd_vel'),
+             ]),
+    ])</pre>
+  <pre><span class="p">$ </span>ros2 launch my_robot_pkg turtle_mimic.launch.py
+<span class="o">[INFO] [launch]: All log files can be found below /home/user/.ros/log/...
+[INFO] [turtlesim_node-1]: process started with pid [5120]
+[INFO] [turtlesim_node-2]: process started with pid [5122]
+[INFO] [mimic-3]: process started with pid [5124]</span>
+<span class="c"># 다른 터미널에서 첫 번째 거북이만 움직이면 두 번째 거북이가 똑같이 따라 움직임</span>
+<span class="p">$ </span>ros2 topic pub -r 1 /turtlesim1/turtle1/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 2.0}, angular: {z: -1.8}}"</pre>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 176" role="img" aria-label="turtlesim1/sim이 pose를 발행하고 mimic이 리매핑된 이름으로 받아, turtlesim2/sim의 cmd_vel로 발행">
+        <rect class="bx" x="10" y="24" width="150" height="46" rx="5"/><text class="tb tm c" x="85" y="40">/turtlesim1/sim</text><text class="ts c" x="85" y="58">첫 번째 거북이</text>
+        <rect class="bx-a" x="190" y="30" width="220" height="34" rx="17"/><text class="ts tm c" x="300" y="47">/turtlesim1/turtle1/pose</text>
+        <rect class="bx" x="470" y="66" width="120" height="50" rx="5"/><text class="tb tm c" x="530" y="91">/mimic</text>
+        <rect class="bx-a" x="190" y="114" width="220" height="34" rx="17"/><text class="ts tm c" x="300" y="131">/turtlesim2/turtle1/cmd_vel</text>
+        <rect class="bx" x="10" y="108" width="150" height="46" rx="5"/><text class="tb tm c" x="85" y="124">/turtlesim2/sim</text><text class="ts c" x="85" y="142">두 번째 거북이</text>
+        <path class="ln" d="M160 47 L186 47"/><path class="ln" d="M410 47 L530 47 L530 62"/>
+        <path class="ln" d="M530 116 L530 131 L414 131"/><path class="ln" d="M190 131 L164 131"/>
+        <text class="ts c" x="300" y="86">mimic 코드 속 이름 /input/pose 를 리매핑</text>
+        <text class="ts c" x="300" y="166">mimic 코드 속 이름 /output/cmd_vel 을 리매핑</text>
+      </svg>
+    </div>
+    <figcaption>같은 <code>turtlesim_node</code> 실행 파일을 네임스페이스만 다르게 두 번 띄웠고, <code>mimic</code> 노드의 코드 속 토픽 이름을 리매핑으로 각 거북이의 토픽에 이었습니다. 세 노드 모두 코드는 한 줄도 바뀌지 않았습니다.</figcaption>
+  </figure>
+  <div class="tbl"><table>
+    <thead><tr><th><code>Node(...)</code>의 인자</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td><code>package</code>, <code>executable</code></td><td><code>ros2 run 패키지 실행파일</code>과 같음</td></tr>
+      <tr><td><code>name</code></td><td>노드 이름 (코드에 쓴 이름 대신)</td></tr>
+      <tr><td><code>namespace</code></td><td>네임스페이스</td></tr>
+      <tr><td><code>parameters</code></td><td>파라미터. <code>[{'max_speed': 1.2}]</code> 같은 딕셔너리나 YAML 파일 경로의 목록</td></tr>
+      <tr><td><code>remappings</code></td><td>리매핑. <code>[('원래', '새')]</code> 목록</td></tr>
+      <tr><td><code>arguments</code></td><td>프로그램에 넘길 명령줄 인자 (예: <code>['-d', 'view.rviz']</code>)</td></tr>
+      <tr><td><code>output='screen'</code></td><td>노드의 출력을 터미널에 표시</td></tr>
+    </tbody>
+  </table></div>
+  <div class="names"><span><code>launch</code><i>launch (발사하다, 시작시키다)</i></span></div>
+
+  <h3>launch 인자로 설정 파일 고르기</h3>
+  <p>launch 파일도 실행할 때 값을 받을 수 있습니다(<strong>launch 인자</strong>). 아래는 실행할 때 고른 설정 파일을 노드에 넣어 주는 launch 파일입니다.</p>
+  <pre data-label="launch/robot.launch.py">import os
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import Node
+
+
+def generate_launch_description():
+    config_dir = os.path.join(get_package_share_directory('my_robot_pkg'), 'config')
+    params = PathJoinSubstitution([config_dir, LaunchConfiguration('params')])
+
+    return LaunchDescription([
+        DeclareLaunchArgument('params', default_value='params_real.yaml'),   <span class="c"># launch 인자 선언</span>
+        Node(package='my_robot_pkg', executable='driver', name='driver',
+             parameters=[params]),
+        Node(package='my_robot_pkg', executable='controller', name='controller',
+             parameters=[params], output='screen'),
+    ])</pre>
+  <pre><span class="p">$ </span>ros2 launch my_robot_pkg robot.launch.py --show-args            <span class="c"># 받을 수 있는 인자 목록</span>
+<span class="p">$ </span>ros2 launch my_robot_pkg robot.launch.py                        <span class="c"># 실제 로봇 설정</span>
+<span class="p">$ </span>ros2 launch my_robot_pkg robot.launch.py params:=params_sim.yaml <span class="c"># 시뮬레이션 설정</span></pre>
+  <p><code>get_package_share_directory('패키지')</code>는 그 패키지의 설치 위치(<code>install/패키지/share/패키지</code>)를 돌려줍니다. 파일 경로를 <code>/home/me/...</code>처럼 내 컴퓨터의 절대 경로로 적으면 다른 사람의 컴퓨터에서 동작하지 않으므로, 항상 이 함수로 찾습니다. 다른 패키지의 launch 파일을 불러와 포함시키는 것(<code>IncludeLaunchDescription</code>)도 가능해서, bringup 패키지의 launch 파일 하나가 여러 패키지의 launch 파일을 묶는 구조가 흔합니다.</p>
+  <div class="names"><span><code>substitution</code><i>substitution (실행할 때 값으로 바뀌는 자리)</i></span><span><code>share</code><i>share (패키지의 데이터 파일을 두는 설치 위치)</i></span></div>
+
+  <h3>launch·설정 파일 설치하기</h3>
+  <p><code>ros2 launch</code>와 <code>get_package_share_directory</code>는 <code>src/</code>가 아니라 <strong><code>install/</code>의 <code>share/</code></strong>에서 파일을 찾습니다(6장). 그래서 <code>setup.py</code>의 <code>data_files</code>에 launch와 config 디렉터리를 설치하도록 적어 줘야 합니다.</p>
+  <pre data-label="setup.py (일부)">import os
+from glob import glob
+...
+data_files=[
+    ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
+    ('share/' + package_name, ['package.xml']),
+    (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),   <span class="c"># 추가</span>
+    (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),        <span class="c"># 추가</span>
+],</pre>
+  <p>이렇게 적고 다시 빌드하면 <code>install/my_robot_pkg/share/my_robot_pkg/launch/</code>와 <code>config/</code>에 파일이 생깁니다. <code>--symlink-install</code>로 빌드했다면 이후에는 launch·YAML 파일 내용을 고쳐도 다시 빌드할 필요가 없습니다. launch 파일에서 다른 패키지의 노드를 띄운다면 <code>package.xml</code>에 그 패키지를 <code>&lt;exec_depend&gt;</code>로 적어 둡니다.</p>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>노드, 설정 파일, launch 파일은 각각 무엇을 담당하나?</summary><div class="a"><p>노드는 무엇을 할지(코드), 설정 파일은 어떤 값으로 할지(파라미터), launch 파일은 어떤 노드들을 어떤 이름·설정·연결로 함께 실행할지를 담당합니다.</p></div></details>
+    <details class="q"><summary>시뮬레이션과 실제 로봇에서 최대 속도와 장치 경로가 다르다. 코드를 두 벌 만들지 않고 해결하는 방법은?</summary><div class="a"><p>값을 파라미터로 선언하고, 환경별 YAML 파일(<code>params_sim.yaml</code>, <code>params_real.yaml</code>)을 만들어 launch 인자로 골라 넣습니다.</p></div></details>
+    <details class="q"><summary>bringup 패키지에는 보통 무엇이 들어가나?</summary><div class="a"><p>노드 코드 없이, 전체 시스템을 띄우는 launch 파일과 설정 파일만 들어갑니다.</p></div></details>
+    <details class="q"><summary>기본값 <code>0.5</code>로 선언한 파라미터에 <code>-p max_speed:=1</code>을 주면 어떻게 되나?</summary><div class="a"><p>float 파라미터에 정수를 넣는 것이므로 형식 오류가 납니다. <code>1.0</code>으로 넣어야 합니다.</p></div></details>
+    <details class="q"><summary>YAML 파일로 파라미터를 줬는데 기본값이 그대로 쓰인다. 무엇을 확인해야 하나?</summary><div class="a"><p>YAML의 맨 위 이름이 실제 노드 이름(네임스페이스 포함)과 같은지, 그 아래에 <code>ros__parameters:</code>(밑줄 두 개)가 있는지 확인합니다. <code>ros2 param get</code>으로 실제 값을 볼 수 있습니다.</p></div></details>
+    <details class="q"><summary>리매핑이란 무엇이고, 언제 쓰나?</summary><div class="a"><p>노드가 쓰는 토픽·서비스 이름을 실행할 때 바꾸는 기능입니다. 서로 다른 이름을 쓰도록 작성된 두 노드를 코드 수정 없이 연결할 때 씁니다.</p></div></details>
+    <details class="q"><summary>launch 파일을 만들었는데 <code>ros2 launch</code>가 "file not found"라고 한다. 원인은?</summary><div class="a"><p><code>ros2 launch</code>는 <code>install/패키지/share/패키지/</code>에서 찾습니다. <code>setup.py</code>의 <code>data_files</code>에 launch 디렉터리를 설치하도록 적고 다시 빌드해야 합니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 11 ===================== -->
+<section class="lec" id="c11" data-num="11" data-group="Ⅵ. 로봇 모델과 좌표" data-title="URDF: 로봇 모델">
+  <div class="manhead"><b>URDF(5)</b><span>11장</span><span>Describing a Robot with URDF</span></div>
+  <h2>URDF: 로봇의 모양 기술하기<small>링크 · 조인트 · 조인트 종류 · 트리 구조 · visual · collision · inertial · xacro · robot_state_publisher · joint_states</small></h2>
+  <p class="lead">RViz2에 로봇을 그리고, 센서가 로봇의 어디에 붙어 있는지 계산하고, 로봇팔의 동작을 계획하려면 컴퓨터가 로봇의 <strong>모양과 관절 구조</strong>를 알아야 합니다. ROS에서는 이것을 <strong>URDF</strong>라는 XML 파일로 적습니다.</p>
+  <div class="names"><span><code>URDF</code><i><b>U</b>nified <b>R</b>obot <b>D</b>escription <b>F</b>ormat</i></span><span><code>XML</code><i>e<b>X</b>tensible <b>M</b>arkup <b>L</b>anguage</i></span></div>
+
+  <h3>로봇의 종류</h3>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>매니퓰레이터 (로봇팔)</th><th>보행 로봇</th><th>모바일 로봇</th></tr></thead>
+    <tbody>
+      <tr><td>구조</td><td>여러 관절이 이어진 팔 + 끝의 그리퍼(엔드 이펙터)</td><td>다리 넷(사족) 또는 둘</td><td>바퀴나 궤도로 이동하는 몸체</td></tr>
+      <tr><td>이동</td><td>바닥에 고정</td><td>험한 지형도 이동</td><td>평평한 곳에서 빠르게</td></tr>
+      <tr><td>주 용도</td><td>정밀한 조작, 조립, 집어 옮기기</td><td>탐사, 재난 현장</td><td>물류, 배달, 서빙, 자율주행</td></tr>
+    </tbody>
+  </table></div>
+  <p>모양은 달라도 모두 <strong>단단한 부품</strong>들이 <strong>관절</strong>로 이어진 구조입니다. URDF는 이 공통 구조를 기술합니다. 바퀴 로봇에서는 바퀴가 몸체에 회전 관절로 붙어 있고, 라이다가 몸체에 고정 관절로 붙어 있다고 표현합니다.</p>
+
+  <h3>링크와 조인트</h3>
+  <ul>
+    <li><strong>링크</strong>(link): 로봇을 이루는 단단한 부품 하나. 몸체, 팔의 한 마디, 바퀴, 센서. 모양, 색, 무게를 가집니다.</li>
+    <li><strong>조인트</strong>(joint): 두 링크를 잇는 관절. 부모 링크에 대해 자식 링크가 <strong>어디에 붙어 있고, 어떻게 움직일 수 있는지</strong>를 정합니다.</li>
+  </ul>
+  <div class="tbl"><table>
+    <thead><tr><th>조인트 종류</th><th>움직임</th><th>예</th></tr></thead>
+    <tbody>
+      <tr><td><code>revolute</code></td><td>한 축으로 <strong>제한된 범위</strong> 안에서 회전 (상한·하한 필요)</td><td>로봇팔의 관절</td></tr>
+      <tr><td><code>continuous</code></td><td>한 축으로 <strong>제한 없이</strong> 계속 회전</td><td>바퀴</td></tr>
+      <tr><td><code>prismatic</code></td><td>한 축 방향으로 <strong>직선</strong> 이동 (범위 필요)</td><td>리프트, 그리퍼 손가락</td></tr>
+      <tr><td><code>fixed</code></td><td>움직이지 않음</td><td>몸체에 붙은 라이다, 카메라</td></tr>
+      <tr><td><code>planar</code></td><td>평면 위에서 이동 (x, y) + 그 평면에 수직인 축 회전</td><td>드묾</td></tr>
+      <tr><td><code>floating</code></td><td>모든 방향 이동과 회전 (6자유도)</td><td>드묾</td></tr>
+    </tbody>
+  </table></div>
+  <div class="names"><span><code>revolute</code><i>revolve (회전하다)</i></span><span><code>prismatic</code><i>prism (각기둥) → 미끄러지는 직선 운동</i></span><span><code>DOF</code><i><b>D</b>egree <b>o</b>f <b>F</b>reedom (자유도: 독립적으로 움직일 수 있는 방향 수)</i></span></div>
+
+  <h3>트리 구조와 상대 위치</h3>
+  <p>URDF의 링크와 조인트는 <strong>트리</strong>를 이룹니다. 맨 위에 <strong>루트 링크</strong>(보통 <code>base_link</code>)가 하나 있고, 모든 링크는 부모가 정확히 하나입니다. 고리(링크가 돌고 돌아 자기에게 돌아오는 연결)는 만들 수 없습니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 274" role="img" aria-label="3자유도 로봇팔: base_link 위에 Joint1로 Link1, Joint2로 Link2, Joint3로 Link3. 오른쪽에 같은 구조의 트리">
+        <rect class="bx-mute" x="40" y="236" width="200" height="8" rx="2"/>
+        <rect class="bx" x="125" y="196" width="30" height="40" rx="2"/><text class="ts" x="164" y="222">base_link</text>
+        <circle class="bx-a" cx="140" cy="186" r="8"/><text class="ts ta" x="154" y="190">Joint1 (0, 0, 0.225)</text>
+        <rect class="bx" x="128" y="134" width="24" height="44" rx="2"/><text class="ts" x="80" y="160">Link1</text>
+        <circle class="bx-a" cx="140" cy="126" r="8"/><text class="ts ta" x="154" y="130">Joint2 (0, 0, 0.25)</text>
+        <rect class="bx" x="128" y="74" width="24" height="44" rx="2"/><text class="ts" x="80" y="100">Link2</text>
+        <circle class="bx-a" cx="140" cy="66" r="8"/><text class="ts ta" x="154" y="70">Joint3 (0, 0, 0.25)</text>
+        <rect class="bx" x="128" y="14" width="24" height="44" rx="2"/><text class="ts" x="80" y="40">Link3</text>
+        <rect class="bx" x="440" y="14" width="120" height="30" rx="4"/><text class="t tm c" x="500" y="29">base_link</text>
+        <rect class="bx" x="440" y="84" width="120" height="30" rx="4"/><text class="t tm c" x="500" y="99">Link1</text>
+        <rect class="bx" x="440" y="154" width="120" height="30" rx="4"/><text class="t tm c" x="500" y="169">Link2</text>
+        <rect class="bx" x="440" y="224" width="120" height="30" rx="4"/><text class="t tm c" x="500" y="239">Link3</text>
+        <path class="ln-a" d="M500 44 L500 80"/><text class="ts ta" x="508" y="66">Joint1 (revolute)</text>
+        <path class="ln-a" d="M500 114 L500 150"/><text class="ts ta" x="508" y="136">Joint2 (revolute)</text>
+        <path class="ln-a" d="M500 184 L500 220"/><text class="ts ta" x="508" y="206">Joint3 (revolute)</text>
+        <text class="ts c" x="140" y="264">옆에서 본 모양</text>
+        <text class="ts c" x="380" y="140">트리로 보면</text>
+      </svg>
+    </div>
+    <figcaption>3자유도 로봇팔의 예. 괄호 안은 조인트의 위치(<code>origin</code>)인데, 바닥 기준이 아니라 <strong>부모 링크 기준</strong>입니다. Joint2는 Link1의 원점에서 위로 0.25m, Joint3는 Link2의 원점에서 위로 0.25m에 있습니다. Joint1이 돌면 그 위의 모든 링크가 함께 돕니다.</figcaption>
+  </figure>
+  <p>각 조인트의 위치를 부모 기준의 <strong>상대 위치</strong>로 적는 덕분에, 아래 관절이 움직이면 그 위의 링크들이 자동으로 따라 움직입니다. 이 "부모 기준 상대 위치의 연쇄"가 12장 TF2의 핵심 개념이기도 합니다.</p>
+
+  <h3>URDF 파일의 구조</h3>
+  <pre data-label="dof3_manipulator.urdf (앞부분)">&lt;?xml version="1.0"?&gt;
+&lt;robot name="dof3_manipulator"&gt;
+
+  &lt;link name="base_link"&gt;
+    &lt;visual&gt;                                       <span class="c">&lt;!-- 눈에 보이는 모양 --&gt;</span>
+      &lt;origin xyz="0 0 0.1" rpy="0 0 0"/&gt;
+      &lt;geometry&gt;&lt;box size="0.05 0.05 0.2"/&gt;&lt;/geometry&gt;
+    &lt;/visual&gt;
+  &lt;/link&gt;
+
+  &lt;joint name="Joint1" type="revolute"&gt;
+    &lt;parent link="base_link"/&gt;
+    &lt;child link="Link1"/&gt;
+    &lt;origin xyz="0 0 0.225" rpy="0 0 0"/&gt;        <span class="c">&lt;!-- 부모 기준 위치(m)와 방향(rad) --&gt;</span>
+    &lt;axis xyz="1 0 0"/&gt;                           <span class="c">&lt;!-- x축을 중심으로 회전 --&gt;</span>
+    &lt;limit lower="-3.14" upper="3.14" effort="30" velocity="1"/&gt;
+  &lt;/joint&gt;
+
+  &lt;link name="Link1"&gt;
+    &lt;visual&gt;
+      &lt;origin xyz="0 0 0.125" rpy="0 0 0"/&gt;
+      &lt;geometry&gt;&lt;box size="0.05 0.05 0.2"/&gt;&lt;/geometry&gt;
+    &lt;/visual&gt;
+  &lt;/link&gt;
+  <span class="c">&lt;!-- Joint2, Link2, Joint3, Link3 도 같은 모양으로 이어짐 --&gt;</span>
+&lt;/robot&gt;</pre>
+  <div class="tbl"><table>
+    <thead><tr><th>링크 안의 요소</th><th>쓰는 곳</th><th>내용</th></tr></thead>
+    <tbody>
+      <tr><td><code>&lt;visual&gt;</code></td><td>RViz2 화면에 그리기</td><td>모양(<code>box</code>, <code>cylinder</code>, <code>sphere</code>, 3D 모델 파일 <code>mesh</code>), 색(<code>material</code>)</td></tr>
+      <tr><td><code>&lt;collision&gt;</code></td><td>충돌 계산 (로봇팔 동작 계획, 시뮬레이터)</td><td>충돌 판정용 모양. 계산이 빠르도록 visual보다 단순한 모양을 쓰는 경우가 많음</td></tr>
+      <tr><td><code>&lt;inertial&gt;</code></td><td>물리 시뮬레이션 (Gazebo)</td><td>질량(<code>mass</code>), 관성(<code>inertia</code>), 무게 중심 위치</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tbl"><table>
+    <thead><tr><th>조인트 안의 요소</th><th>내용</th></tr></thead>
+    <tbody>
+      <tr><td><code>&lt;parent&gt;</code>, <code>&lt;child&gt;</code></td><td>잇는 두 링크</td></tr>
+      <tr><td><code>&lt;origin xyz rpy&gt;</code></td><td>부모 링크 좌표계 기준으로 이 조인트(=자식 링크 좌표계)가 있는 위치와 방향. 단위는 m, rad</td></tr>
+      <tr><td><code>&lt;axis xyz&gt;</code></td><td>회전축이나 이동 방향 (조인트 좌표계 기준)</td></tr>
+      <tr><td><code>&lt;limit&gt;</code></td><td>움직일 수 있는 범위(<code>lower</code>, <code>upper</code>), 최대 힘(<code>effort</code>), 최대 속도(<code>velocity</code>). revolute, prismatic에는 필수</td></tr>
+    </tbody>
+  </table></div>
+  <pre><span class="p">$ </span>sudo apt install liburdfdom-tools
+<span class="p">$ </span>check_urdf dof3_manipulator.urdf              <span class="c"># 문법과 트리 구조 검사</span>
+<span class="o">robot name is: dof3_manipulator
+---------- Successfully Parsed XML ---------------
+root Link: base_link has 1 child(ren)
+    child(1):  Link1
+        child(1):  Link2
+            child(1):  Link3</span>
+<span class="p">$ </span>urdf_to_graphviz dof3_manipulator.urdf        <span class="c"># 트리를 PDF 그림으로</span>
+<span class="o">Created file dof3_manipulator.gv
+Created file dof3_manipulator.pdf</span></pre>
+  <div class="names"><span><code>rpy</code><i><b>r</b>oll <b>p</b>itch <b>y</b>aw (12장)</i></span><span><code>visual</code><i>보이는 모양</i></span><span><code>collision</code><i>충돌</i></span><span><code>inertial</code><i>관성</i></span></div>
+
+  <h3>xacro: 반복을 줄이는 매크로</h3>
+  <p>로봇팔처럼 비슷한 링크가 반복되면 URDF가 길고 고치기 어려워집니다. 링크 길이를 바꾸면 여러 곳의 숫자를 함께 고쳐야 하기 때문입니다. <strong>xacro</strong>는 URDF에 <strong>변수, 수식, 매크로(틀), 다른 파일 포함</strong>을 더한 형식입니다.</p>
+  <pre data-label="arm.urdf.xacro (일부)">&lt;robot name="arm" xmlns:xacro="http://www.ros.org/wiki/xacro"&gt;
+  &lt;xacro:property name="link_len" value="0.2"/&gt;                 <span class="c">&lt;!-- 변수 --&gt;</span>
+
+  &lt;xacro:macro name="arm_link" params="name"&gt;                   <span class="c">&lt;!-- 틀 정의 --&gt;</span>
+    &lt;link name="${name}"&gt;
+      &lt;visual&gt;
+        &lt;origin xyz="0 0 ${link_len/2 + 0.025}"/&gt;              <span class="c">&lt;!-- 수식 --&gt;</span>
+        &lt;geometry&gt;&lt;box size="0.05 0.05 ${link_len}"/&gt;&lt;/geometry&gt;
+      &lt;/visual&gt;
+    &lt;/link&gt;
+  &lt;/xacro:macro&gt;
+
+  &lt;xacro:arm_link name="Link1"/&gt;                                <span class="c">&lt;!-- 틀 사용 --&gt;</span>
+  &lt;xacro:arm_link name="Link2"/&gt;
+  &lt;xacro:include filename="$(find my_robot)/urdf/gripper.xacro"/&gt;  <span class="c">&lt;!-- 다른 파일 포함 --&gt;</span>
+&lt;/robot&gt;</pre>
+  <pre><span class="p">$ </span>xacro arm.urdf.xacro &gt; arm.urdf      <span class="c"># 매크로를 풀어서 보통 URDF로 변환</span></pre>
+  <p>실제 로봇 패키지(TurtleBot3 등)의 모델은 대부분 <code>.urdf.xacro</code>로 되어 있고, launch 파일이 실행할 때 <code>xacro</code> 명령으로 변환해서 씁니다.</p>
+  <div class="names"><span><code>xacro</code><i><b>X</b>ML m<b>acro</b></i></span><span><code>macro</code><i>macro (하나로 여럿을 만들어 내는 틀)</i></span></div>
+
+  <h3>실행 중에 URDF가 쓰이는 방법</h3>
+  <p>URDF 파일 자체는 그냥 글자입니다. 실행 중에는 몇 개의 노드가 이 파일과 관절 값을 이용해 각 링크의 현재 위치를 계속 계산하고 알려 줍니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 220" role="img" aria-label="joint_state_publisher 또는 실제 로봇 드라이버가 /joint_states를 발행하고, robot_state_publisher가 URDF와 관절 값으로 각 링크 위치를 계산해 /tf와 /tf_static으로 발행, RViz2가 이를 받아 로봇을 그림">
+        <rect class="bx" x="10" y="20" width="170" height="56" rx="5"/><text class="tb c" x="95" y="40">joint_state_publisher</text><text class="ts c" x="95" y="60">(시험용: GUI 슬라이더)</text>
+        <rect class="bx" x="10" y="94" width="170" height="44" rx="5"/><text class="tb c" x="95" y="112">실제 로봇 드라이버</text><text class="ts c" x="95" y="128">모터 엔코더 값</text>
+        <rect class="bx-a" x="210" y="62" width="120" height="30" rx="15"/><text class="ts tm c" x="270" y="77">/joint_states</text>
+        <rect class="bx" x="360" y="44" width="150" height="66" rx="5"/><text class="tb c" x="435" y="64">robot_state_</text><text class="tb c" x="435" y="82">publisher</text><text class="ts c" x="435" y="100">URDF + 관절 값 → 위치</text>
+        <rect class="bx-mute" x="360" y="150" width="150" height="40" rx="5"/><text class="ts c" x="435" y="165">robot_description</text><text class="ts c" x="435" y="180">(URDF 문자열 파라미터)</text>
+        <rect class="bx-a" x="540" y="34" width="90" height="28" rx="14"/><text class="ts tm c" x="585" y="48">/tf</text>
+        <rect class="bx-a" x="540" y="94" width="90" height="28" rx="14"/><text class="ts tm c" x="585" y="108">/tf_static</text>
+        <path class="ln" d="M180 54 L206 72"/><path class="ln" d="M180 116 L206 84"/>
+        <path class="ln" d="M330 77 L356 77"/>
+        <path class="ln" d="M435 150 L435 114"/>
+        <path class="ln-a" d="M510 66 L536 50"/><path class="ln-a" d="M510 90 L536 106"/>
+        <text class="ts c" x="585" y="146">→ RViz2 등</text>
+        <text class="ts" x="540" y="24">움직이는 관절</text><text class="ts" x="540" y="136">고정 관절</text>
+      </svg>
+    </div>
+    <figcaption>관절의 현재 각도(<code>/joint_states</code>)와 URDF를 합쳐, <code>robot_state_publisher</code>가 모든 링크의 위치를 계산해 TF(12장)로 발행합니다. 움직이는 관절은 계속 <code>/tf</code>로, 고정 관절은 한 번만 <code>/tf_static</code>으로 발행합니다.</figcaption>
+  </figure>
+  <div class="tbl"><table>
+    <thead><tr><th>노드 / 데이터</th><th>역할</th></tr></thead>
+    <tbody>
+      <tr><td><code>robot_description</code></td><td>URDF 내용 전체를 담은 문자열 파라미터. <code>robot_state_publisher</code>가 받아서 <code>/robot_description</code> 토픽으로도 내보내고, RViz2 등이 이것을 읽어 로봇 모양을 그림</td></tr>
+      <tr><td><code>/joint_states</code></td><td><code>sensor_msgs/msg/JointState</code>. 관절 이름별 현재 위치·속도·힘</td></tr>
+      <tr><td><code>joint_state_publisher_gui</code></td><td>실제 로봇이 없을 때, 슬라이더로 관절 값을 직접 만들어 <code>/joint_states</code>로 발행하는 시험용 노드</td></tr>
+      <tr><td><code>robot_state_publisher</code></td><td>URDF와 <code>/joint_states</code>로 각 링크의 위치를 계산해 <code>/tf</code>, <code>/tf_static</code> 발행</td></tr>
+    </tbody>
+  </table></div>
+  <pre data-label="launch 파일에서 URDF를 robot_state_publisher에 넣기">from launch.substitutions import Command
+from launch_ros.parameter_descriptions import ParameterValue
+
+robot_description = ParameterValue(Command(['xacro ', urdf_path]), value_type=str)  <span class="c"># 실행 시 xacro 로 변환한 문자열</span>
+
+Node(package='robot_state_publisher', executable='robot_state_publisher',
+     parameters=[{'robot_description': robot_description}]),
+Node(package='joint_state_publisher_gui', executable='joint_state_publisher_gui'),
+Node(package='rviz2', executable='rviz2'),</pre>
+  <div class="lab"><b class="t">직접 보기</b>
+    <ol>
+      <li><code>sudo apt install ros-humble-urdf-tutorial</code>로 예제 패키지를 설치합니다.</li>
+      <li><code>ros2 launch urdf_tutorial display.launch.py model:=$HOME/dof3_manipulator.urdf</code>처럼 내 URDF 경로를 넣어 실행하면 위 세 노드가 함께 뜹니다.</li>
+      <li>슬라이더 창에서 관절 값을 바꾸면 RViz2의 로봇이 움직이고, <code>ros2 topic echo /joint_states</code>로 값이 바뀌는 것을 볼 수 있습니다.</li>
+    </ol>
+  </div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>바퀴, 로봇팔의 관절, 몸체에 붙은 라이다는 각각 어떤 조인트 종류가 알맞나?</summary><div class="a"><p>바퀴는 계속 도는 <code>continuous</code>, 로봇팔 관절은 범위가 있는 <code>revolute</code>, 라이다는 움직이지 않는 <code>fixed</code>입니다.</p></div></details>
+    <details class="q"><summary>조인트의 <code>&lt;origin xyz="0 0 0.25"/&gt;</code>는 무엇을 기준으로 한 위치인가?</summary><div class="a"><p>부모 링크의 좌표계 기준입니다. 바닥이나 로봇 전체 기준이 아닙니다.</p></div></details>
+    <details class="q"><summary><code>&lt;visual&gt;</code>과 <code>&lt;collision&gt;</code>의 모양을 다르게 두는 이유는?</summary><div class="a"><p>visual은 보기 좋게 자세한 3D 모델을 쓰고, collision은 충돌 계산이 빠르도록 상자·원기둥 같은 단순한 모양을 쓰기 위해서입니다.</p></div></details>
+    <details class="q"><summary>xacro를 쓰면 좋은 점은?</summary><div class="a"><p>변수, 수식, 매크로, 파일 포함을 쓸 수 있어서 반복되는 링크를 한 번만 정의하고, 치수를 한 곳에서만 고치면 되므로 길고 실수하기 쉬운 URDF를 짧게 관리할 수 있습니다.</p></div></details>
+    <details class="q"><summary><code>robot_state_publisher</code>는 무엇을 입력받아 무엇을 내보내나?</summary><div class="a"><p>URDF(<code>robot_description</code> 파라미터)와 관절 값(<code>/joint_states</code>)을 받아, 각 링크의 위치와 방향을 <code>/tf</code>(움직이는 관절)와 <code>/tf_static</code>(고정 관절)으로 발행합니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 12 ===================== -->
+<section class="lec" id="c12" data-num="12" data-group="Ⅵ. 로봇 모델과 좌표" data-title="TF2: 좌표 변환">
+  <div class="manhead"><b>TF2(3)</b><span>12장</span><span>Coordinate Frames and Transforms</span></div>
+  <h2>TF2: 좌표계와 좌표 변환<small>좌표계 · 이동과 회전 · 동차 변환 행렬 · 오일러 각 · 쿼터니언 · TF 트리 · map · odom · base_link · broadcaster · listener · 시간</small></h2>
+  <p class="lead">라이다가 "앞쪽 1m에 장애물"이라고 알려 줘도, 그것만으로는 로봇이 어디로 피해야 할지 모릅니다. 라이다는 로봇 중심에서 떨어진 곳에 달려 있고, 로봇은 지도 위 어딘가에서 어느 방향을 보고 있기 때문입니다. <strong>TF2</strong>는 로봇 안팎의 여러 좌표계 사이의 관계를 관리하고, 한 좌표계의 값을 다른 좌표계로 바꿔 주는 라이브러리입니다.</p>
+  <div class="names"><span><code>TF</code><i><b>T</b>rans<b>f</b>orm (변환)</i></span><span><code>frame</code><i>frame (좌표계, 기준 틀)</i></span></div>
+
+  <h3>좌표계(frame)</h3>
+  <p><strong>좌표계</strong>는 원점 하나와 서로 수직인 x, y, z 세 축입니다. 로봇에는 좌표계가 여러 개 있습니다. 지도 전체의 좌표계, 로봇 몸체의 좌표계, 라이다의 좌표계, 카메라의 좌표계, 로봇팔 관절마다의 좌표계…. 센서 메시지의 <code>header.frame_id</code>(7장)가 바로 "이 값은 어느 좌표계 기준인가"를 나타냅니다.</p>
+  <p>ROS에서는 좌표축 방향을 통일해 두었습니다(REP 103). 로봇 몸체 기준으로 <strong>x는 앞, y는 왼쪽, z는 위</strong>이고, 오른손 좌표계입니다. 회전 방향은 축의 양의 방향에서 내려다볼 때 반시계 방향이 양수입니다. 길이는 미터, 각도는 라디안을 씁니다.</p>
+  <div class="names"><span><code>REP</code><i><b>R</b>OS <b>E</b>nhancement <b>P</b>roposal (ROS 규약 문서)</i></span></div>
+
+  <h3>좌표 변환: 이동 + 회전</h3>
+  <p>좌표계 A에서 본 좌표계 B의 관계는 두 가지로 나타냅니다. B의 원점이 A에서 어디에 있는지(<strong>이동</strong>, translation)와, B의 축이 A의 축에 대해 얼마나 돌아가 있는지(<strong>회전</strong>, rotation)입니다. 이 둘을 4×4 행렬 하나로 묶은 것을 <strong>동차 변환 행렬</strong>이라고 합니다.</p>
+  <pre><span class="o">ᴬT_B = [ R   P ]      R: 3×3 회전 행렬 (B의 축이 A에서 어느 방향인가)
+       [ 0   1 ]      P: 3×1 이동 벡터 (B의 원점이 A에서 어디인가)</span></pre>
+  <p>이 행렬의 좋은 점은 <strong>곱하면 이어진다</strong>는 것입니다. A→B, B→C를 알면 곱해서 A→C를 얻습니다.</p>
+  <pre><span class="o">ᴬT_C = ᴬT_B · ᴮT_C</span></pre>
+  <p>예를 들어 계산해 봅니다. 문제를 단순하게 하려고 바닥 평면(x, y)과 z축 회전만 봅니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 272" role="img" aria-label="지도 좌표계에서 로봇이 (2,1)에 위쪽을 보고 있고, 로봇 앞 0.2m에 라이다, 라이다 앞 1m에 장애물. 장애물의 지도 좌표는 (2, 2.2)">
+        <path class="edge" d="M60 240 L330 240"/><path class="edge" d="M60 240 L60 20"/>
+        <text class="ts" x="336" y="244">x (map)</text><text class="ts" x="52" y="14">y</text>
+        <text class="ts c" x="60" y="260">map 원점</text>
+        <path class="ln-x" d="M60 170 L200 170"/><path class="ln-x" d="M200 240 L200 182"/>
+        <text class="ts c" x="200" y="260">2</text><text class="ts" x="44" y="174">1</text>
+        <rect class="bx-a" x="188" y="158" width="24" height="24" rx="4"/>
+        <circle class="bx" cx="200" cy="156" r="5"/>
+        <path class="ln" d="M200 150 L200 98"/>
+        <rect class="bx" x="192" y="78" width="16" height="16" rx="2"/>
+        <text class="ts ta" x="222" y="186">base_link (2, 1), 앞이 +y 방향</text>
+        <text class="ts" x="222" y="160">laser: 로봇 앞 0.2m</text>
+        <text class="ts" x="222" y="90">장애물: laser 앞 1.0m</text>
+        <text class="tb" x="440" y="40">장애물 위치 계산</text>
+        <text class="ts tm" x="440" y="66">laser 기준</text><text class="ts tm" x="560" y="66">(1.0, 0)</text>
+        <text class="ts tm" x="440" y="92">base_link 기준</text><text class="ts tm" x="560" y="92">(1.2, 0)</text>
+        <text class="ts" x="440" y="110">+ 라이다 위치 (0.2, 0)</text>
+        <text class="ts tm ta" x="440" y="140">map 기준</text><text class="ts tm ta" x="560" y="140">(2, 2.2)</text>
+        <text class="ts" x="440" y="158">90° 회전: (1.2, 0) → (0, 1.2)</text>
+        <text class="ts" x="440" y="176">+ 로봇 위치 (2, 1)</text>
+      </svg>
+    </div>
+    <figcaption>라이다가 본 "앞 1m"는 로봇 중심 기준으로 "앞 1.2m"이고, 지도 기준으로는 (2, 2.2)입니다. 각 단계는 "회전시키고 이동"하는 같은 계산이고, TF2가 이 계산을 대신 해 줍니다.</figcaption>
+  </figure>
+  <div class="names"><span><code>translation</code><i>translation (평행 이동)</i></span><span><code>rotation</code><i>rotation (회전)</i></span><span><code>homogeneous</code><i>homogeneous (동차: 이동과 회전을 한 행렬로)</i></span></div>
+
+  <h3>회전을 나타내는 두 가지 방법</h3>
+  <div class="grid2">
+    <div>
+      <strong>오일러 각 (Roll, Pitch, Yaw)</strong>
+      <p>x축 회전(roll, 옆으로 기울기), y축 회전(pitch, 앞뒤로 숙이기), z축 회전(yaw, 고개 돌리기) 세 각도입니다. 사람이 이해하기 쉬워서 URDF의 <code>rpy</code>나 설정 파일에 씁니다. 하지만 특정 자세(pitch가 ±90°)에서 두 축이 겹쳐 한 방향의 회전을 표현할 수 없게 되는 <strong>짐벌 락</strong> 문제가 있고, 회전을 이어 붙이는 계산이 번거롭습니다.</p>
+    </div>
+    <div>
+      <strong>쿼터니언 (x, y, z, w)</strong>
+      <p>숫자 네 개로 회전을 나타냅니다. 짐벌 락이 없고, 회전을 이어 붙이는 계산(곱셈)이 빠르고 안정적이어서 ROS 메시지의 회전은 모두 쿼터니언입니다(<code>geometry_msgs/Quaternion</code>). 대신 숫자만 보고 어떤 회전인지 알기 어렵습니다.</p>
+    </div>
+  </div>
+  <p>바닥 위 로봇처럼 z축 회전(yaw = θ)만 있을 때는 쿼터니언이 간단합니다: <code>(x, y, z, w) = (0, 0, sin(θ/2), cos(θ/2))</code>. 회전이 없으면 <code>(0, 0, 0, 1)</code>입니다. <code>(0, 0, 0, 0)</code>은 올바른 쿼터니언이 아니므로, 메시지를 직접 만들 때 <code>w</code>를 빠뜨리면 안 됩니다.</p>
+  <pre data-label="오일러 각 ↔ 쿼터니언 변환">from tf_transformations import quaternion_from_euler, euler_from_quaternion
+<span class="c"># 설치: sudo apt install ros-humble-tf-transformations &amp;&amp; pip3 install transforms3d</span>
+
+q = quaternion_from_euler(0.0, 0.0, 1.5708)      <span class="c"># roll, pitch, yaw → (x, y, z, w)</span>
+<span class="c"># q ≈ (0.0, 0.0, 0.7071, 0.7071)</span>
+roll, pitch, yaw = euler_from_quaternion(q)</pre>
+  <div class="names"><span><code>roll</code><i>roll (구르다: 옆으로 기울기)</i></span><span><code>pitch</code><i>pitch (앞뒤로 숙이기)</i></span><span><code>yaw</code><i>yaw (좌우로 방향 틀기)</i></span><span><code>gimbal lock</code><i>짐벌 잠김</i></span><span><code>quaternion</code><i>quaternion (사원수: 수 네 개)</i></span></div>
+
+  <h3>TF 트리</h3>
+  <p>TF2는 좌표계들의 관계를 URDF처럼 <strong>트리</strong>로 관리합니다. 각 좌표계는 부모가 하나이고, 부모에 대한 변환 하나만 누군가가 알려 주면 됩니다. 그러면 TF2가 트리를 따라 경로를 찾아 변환을 곱해서, <strong>트리 안의 어떤 두 좌표계 사이의 변환이든</strong> 계산해 줍니다.</p>
+  <figure class="fig">
+    <div class="cv">
+      <svg class="d" viewBox="0 0 640 290" role="img" aria-label="모바일 로봇의 TF 트리: map 아래 odom, 그 아래 base_link, 그 아래 laser, camera_link, 왼쪽 바퀴, 오른쪽 바퀴. 각 연결을 발행하는 노드가 다름">
+        <rect class="bx-a" x="250" y="10" width="140" height="34" rx="4"/><text class="tb tm c" x="320" y="27">map</text>
+        <rect class="bx-a" x="250" y="80" width="140" height="34" rx="4"/><text class="tb tm c" x="320" y="97">odom</text>
+        <rect class="bx-a" x="250" y="150" width="140" height="34" rx="4"/><text class="tb tm c" x="320" y="167">base_link</text>
+        <rect class="bx" x="20" y="236" width="120" height="34" rx="4"/><text class="t tm c" x="80" y="253">laser</text>
+        <rect class="bx" x="170" y="236" width="130" height="34" rx="4"/><text class="t tm c" x="235" y="253">camera_link</text>
+        <rect class="bx" x="330" y="236" width="140" height="34" rx="4"/><text class="t tm c" x="400" y="253">wheel_left_link</text>
+        <rect class="bx" x="490" y="236" width="140" height="34" rx="4"/><text class="t tm c" x="560" y="253">wheel_right_link</text>
+        <path class="ln" d="M320 44 L320 76"/><path class="ln" d="M320 114 L320 146"/>
+        <path class="ln" d="M300 184 L80 232"/><path class="ln" d="M310 184 L235 232"/><path class="ln" d="M330 184 L400 232"/><path class="ln" d="M340 184 L560 232"/>
+        <text class="ts" x="400" y="58">위치 추정 노드 (AMCL, SLAM)</text><text class="ts" x="400" y="74">가끔 점프하며 오차를 바로잡음</text>
+        <text class="ts" x="400" y="128">오도메트리 (바퀴 엔코더 + IMU)</text><text class="ts" x="400" y="144">부드럽지만 오차가 쌓임</text>
+        <text class="ts" x="20" y="172">robot_state_publisher</text><text class="ts" x="20" y="190">(URDF, 11장)</text>
+      </svg>
+    </div>
+    <figcaption>바퀴로 움직이는 로봇의 일반적인 TF 트리(REP 105). 연결마다 그 관계를 알려 주는 노드가 다릅니다. 트리가 이어져 있으므로 <code>map</code>과 <code>laser</code>처럼 직접 연결되지 않은 좌표계 사이의 변환도 계산할 수 있습니다.</figcaption>
+  </figure>
+  <div class="tbl"><table>
+    <thead><tr><th>좌표계</th><th>뜻</th><th>성질</th></tr></thead>
+    <tbody>
+      <tr><td><code>map</code></td><td>지도에 고정된 좌표계</td><td>오래 지나도 정확함. 대신 위치 추정이 오차를 바로잡을 때 로봇 위치가 갑자기 뛸 수 있음</td></tr>
+      <tr><td><code>odom</code></td><td>로봇이 출발한 곳에 고정된 좌표계. 바퀴 회전 수 등으로 움직인 양을 누적</td><td>값이 끊김 없이 부드럽게 변해 짧은 시간의 제어에 좋음. 하지만 바퀴 미끄러짐 등으로 <strong>오차가 계속 쌓임</strong></td></tr>
+      <tr><td><code>base_link</code></td><td>로봇 몸체에 붙은 좌표계 (보통 두 바퀴 축의 가운데)</td><td>로봇과 함께 움직임. 센서들의 부모</td></tr>
+      <tr><td><code>laser</code>, <code>camera_link</code>…</td><td>센서에 붙은 좌표계</td><td><code>base_link</code>에 대해 고정 (<code>/tf_static</code>)</td></tr>
+    </tbody>
+  </table></div>
+  <p><code>map</code>과 <code>base_link</code> 사이에 <code>odom</code>을 두는 이유는, 둘의 장점을 함께 쓰기 위해서입니다. 위치 추정 노드는 "<code>map</code>에서 본 로봇 위치"를 계산하지만, <code>map→base_link</code>를 직접 발행하지 않고 오도메트리의 누적 오차만큼을 <code>map→odom</code>으로 발행합니다. 그래서 <code>odom→base_link</code>는 부드럽게 유지되면서도, 둘을 곱한 <code>map→base_link</code>는 정확해집니다.</p>
+  <div class="names"><span><code>odom</code><i><b>odom</b>etry (주행 거리 측정)</i></span><span><code>base_link</code><i>로봇 몸체의 기준 링크</i></span></div>
+
+  <h3>/tf와 /tf_static</h3>
+  <p>TF2의 정보도 결국 토픽으로 오갑니다. 변환을 알려 주는 쪽을 <strong>broadcaster</strong>, 받아서 모아 두고 계산하는 쪽을 <strong>listener</strong>라고 합니다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>토픽</th><th>담는 것</th><th>QoS</th></tr></thead>
+    <tbody>
+      <tr><td><code>/tf</code></td><td>시간에 따라 변하는 변환 (<code>odom→base_link</code>, 관절)</td><td>계속 발행</td></tr>
+      <tr><td><code>/tf_static</code></td><td>변하지 않는 변환 (<code>base_link→laser</code>)</td><td>한 번만 발행. <code>TRANSIENT_LOCAL</code>이라 나중에 켜진 노드도 받음 (7장)</td></tr>
+    </tbody>
+  </table></div>
+  <pre><span class="p">$ </span>ros2 interface show geometry_msgs/msg/TransformStamped
+<span class="o">std_msgs/Header header
+	builtin_interfaces/Time stamp       </span><span class="c"># 이 변환이 성립하는 시각</span><span class="o">
+	string frame_id                     </span><span class="c"># 부모 좌표계</span><span class="o">
+string child_frame_id                   </span><span class="c"># 자식 좌표계</span><span class="o">
+Transform transform
+	Vector3 translation                 </span><span class="c"># 이동 (x, y, z)</span><span class="o">
+	Quaternion rotation                 </span><span class="c"># 회전 (x, y, z, w)</span></pre>
+  <p><code>/tf</code> 토픽의 메시지(<code>tf2_msgs/msg/TFMessage</code>)는 이 <code>TransformStamped</code>의 배열입니다. 한 메시지에 여러 연결의 변환을 담아 보낼 수 있습니다.</p>
+
+  <h3>broadcaster: 변환 알려 주기</h3>
+  <p>turtlesim의 거북이 위치(<code>/turtle1/pose</code>)를 받아서 <code>world → turtle1</code> 변환으로 발행하는 노드입니다. 거북이를 움직이면 <code>turtle1</code> 좌표계가 따라 움직입니다.</p>
+  <pre data-label="turtle_tf_broadcaster.py (핵심 부분)">from geometry_msgs.msg import TransformStamped
+from tf2_ros import TransformBroadcaster
+from tf_transformations import quaternion_from_euler
+from turtlesim.msg import Pose
+
+class TurtleBroadcaster(Node):
+    def __init__(self):
+        super().__init__('turtle_tf_broadcaster')
+        self.br = TransformBroadcaster(self)
+        self.create_subscription(Pose, '/turtle1/pose', self.on_pose, 10)
+
+    def on_pose(self, msg):
+        t = TransformStamped()
+        t.header.stamp = self.get_clock().now().to_msg()   <span class="c"># 언제의 변환인가</span>
+        t.header.frame_id = 'world'                        <span class="c"># 부모</span>
+        t.child_frame_id = 'turtle1'                       <span class="c"># 자식</span>
+        t.transform.translation.x = msg.x
+        t.transform.translation.y = msg.y
+        q = quaternion_from_euler(0, 0, msg.theta)         <span class="c"># 평면 위 회전 → 쿼터니언</span>
+        t.transform.rotation.x, t.transform.rotation.y = q[0], q[1]
+        t.transform.rotation.z, t.transform.rotation.w = q[2], q[3]
+        self.br.sendTransform(t)</pre>
+  <p>움직이지 않는 변환은 코드를 쓸 필요 없이 명령 한 줄로 발행할 수 있습니다. 센서를 로봇에 새로 달았는데 URDF에 아직 넣지 않았을 때 자주 씁니다.</p>
+  <pre><span class="p">$ </span>ros2 run tf2_ros static_transform_publisher --x 0.2 --y 0 --z 0.15 \
+    --roll 0 --pitch 0 --yaw 0 --frame-id base_link --child-frame-id laser</pre>
+
+  <h3>listener: 변환 물어보기</h3>
+  <pre data-label="listener (핵심 부분)">from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
+
+<span class="c"># 생성자에서</span>
+self.buffer = Buffer()                                 <span class="c"># 받은 변환을 시간과 함께 보관 (기본 10초)</span>
+self.listener = TransformListener(self.buffer, self)   <span class="c"># /tf, /tf_static 을 구독해 buffer 에 채움</span>
+
+<span class="c"># 타이머 콜백 등에서</span>
+try:
+    t = self.buffer.lookup_transform('turtle2', 'turtle1', rclpy.time.Time())
+except TransformException as ex:
+    self.get_logger().info(f'변환을 찾을 수 없음: {ex}')
+    return
+<span class="c"># t.transform.translation = turtle2 좌표계에서 본 turtle1 의 위치</span></pre>
+  <p><code>lookup_transform(target, source, time)</code>은 "<strong>source 좌표계의 값을 target 좌표계로 바꾸는 변환</strong>"을 돌려줍니다. 결과의 이동 값은 곧 "target에서 본 source 원점의 위치"입니다. 위 예에서는 turtle2의 눈으로 본 turtle1의 위치이므로, x가 양수면 turtle1이 앞에 있고, <code>atan2(y, x)</code>가 turtle1 쪽 방향입니다. 이 값으로 turtle2에게 속도 명령을 보내면 turtle2가 turtle1을 따라가게 만들 수 있습니다.</p>
+  <div class="note"><b class="t">시간이 중요한 이유</b>Buffer는 변환을 <strong>시간별로</strong> 보관합니다. 0.1초 전에 찍은 라이다 데이터는 0.1초 전의 로봇 위치로 바꿔야 정확하기 때문입니다. 세 번째 인자 <code>rclpy.time.Time()</code>(값이 0인 시간)은 "가지고 있는 가장 최근 것"이라는 뜻이고, 메시지의 <code>header.stamp</code>를 넣으면 그 시각의 변환을 계산합니다. 아직 받지 못한 미래 시각을 물으면 "extrapolation into the future" 오류가 납니다.</div>
+  <div class="names"><span><code>broadcaster</code><i>broadcast (방송하다)</i></span><span><code>listener</code><i>listen (듣다)</i></span><span><code>buffer</code><i>buffer (임시 보관소)</i></span><span><code>lookup</code><i>look up (찾아보다)</i></span></div>
+
+  <h3>TF 확인 도구</h3>
+  <pre><span class="p">$ </span>ros2 run tf2_ros tf2_echo world turtle1           <span class="c"># 두 좌표계 사이의 변환을 계속 출력</span>
+<span class="o">At time 1735217648.42091828
+- Translation: [7.223, 4.728, 0.000]
+- Rotation: in Quaternion [0.000, 0.000, -0.149, 0.989]
+- Rotation: in RPY (radian) [0.000, 0.000, -0.299]
+- Rotation: in RPY (degree) [0.000, 0.000, -17.142]
+- Matrix:
+  0.956  0.295  0.000  7.223
+ -0.295  0.956 -0.000  4.728
+ -0.000  0.000  1.000  0.000
+  0.000  0.000  0.000  1.000</span>
+<span class="p">$ </span>ros2 run tf2_tools view_frames                    <span class="c"># 지금의 TF 트리를 PDF 그림으로 저장</span></pre>
+  <p><code>tf2_echo</code> 결과에서 같은 회전이 쿼터니언, 라디안, 도, 행렬로 함께 나옵니다. yaw = -0.299rad이면 <code>z = sin(-0.1495) ≈ -0.149</code>, <code>w = cos(-0.1495) ≈ 0.989</code>로 위의 공식과 맞습니다. 행렬의 왼쪽 위 3×3이 회전, 오른쪽 열이 이동입니다. RViz2에서는 Displays에 <strong>TF</strong>를 추가하면 각 좌표계의 축이 화면에 그려집니다.</p>
+  <div class="warn"><b class="t">TF 문제의 흔한 원인</b>
+    <ul>
+      <li><strong>트리가 끊김</strong>: 어떤 연결을 아무도 발행하지 않으면 그 아래 좌표계는 위쪽과 변환할 수 없습니다. <code>view_frames</code>로 트리가 하나로 이어져 있는지 봅니다.</li>
+      <li><strong>부모가 둘</strong>: 두 노드가 같은 자식 좌표계를 서로 다른 부모로 발행하면 트리가 깨집니다. 예: 위치 추정 노드와 다른 노드가 모두 <code>odom→base_link</code>를 발행.</li>
+      <li><strong>시간이 안 맞음</strong>: 시뮬레이션이나 bag 재생 중에 일부 노드만 <code>use_sim_time</code>을 켜면, 변환의 시각이 서로 맞지 않아 lookup이 실패합니다.</li>
+    </ul>
+  </div>
+
+  <div class="quiz"><h4>확인 문제</h4>
+    <details class="q"><summary>ROS에서 로봇 몸체 기준 x, y, z축은 각각 어느 방향인가?</summary><div class="a"><p>x는 앞, y는 왼쪽, z는 위입니다(REP 103).</p></div></details>
+    <details class="q"><summary>A→B 변환과 B→C 변환을 알 때 A→C 변환은 어떻게 구하나?</summary><div class="a"><p>두 동차 변환 행렬을 곱합니다: ᴬT_C = ᴬT_B · ᴮT_C.</p></div></details>
+    <details class="q"><summary>ROS 메시지가 회전을 오일러 각이 아닌 쿼터니언으로 나타내는 이유는?</summary><div class="a"><p>쿼터니언은 짐벌 락이 없고, 회전을 이어 붙이는 계산이 빠르고 안정적이기 때문입니다.</p></div></details>
+    <details class="q"><summary>yaw가 0인(회전 없는) 쿼터니언은? 실수로 (0, 0, 0, 0)을 넣으면?</summary><div class="a"><p>(x, y, z, w) = (0, 0, 0, 1)입니다. (0, 0, 0, 0)은 올바른 회전이 아니라서 변환 계산이 실패하거나 RViz2에서 표시되지 않습니다.</p></div></details>
+    <details class="q"><summary><code>odom→base_link</code>와 <code>map→odom</code>은 각각 누가 발행하나? <code>map</code>과 <code>odom</code>의 차이는?</summary><div class="a"><p><code>odom→base_link</code>는 오도메트리(바퀴 엔코더, IMU) 노드가, <code>map→odom</code>은 위치 추정 노드(AMCL, SLAM)가 발행합니다. <code>odom</code>은 부드럽게 변하지만 오차가 쌓이고, <code>map</code>은 오래 지나도 정확하지만 보정할 때 값이 뛸 수 있습니다.</p></div></details>
+    <details class="q"><summary>라이다와 몸체 사이의 변환은 <code>/tf</code>와 <code>/tf_static</code> 중 어디로 발행하나? 이유는?</summary><div class="a"><p><code>/tf_static</code>입니다. 라이다는 몸체에 고정되어 변환이 변하지 않으므로 한 번만 발행하면 되고, TRANSIENT_LOCAL QoS 덕분에 나중에 켜진 노드도 받을 수 있습니다.</p></div></details>
+    <details class="q"><summary><code>buffer.lookup_transform('base_link', 'laser', Time())</code>의 결과는 무엇을 뜻하나?</summary><div class="a"><p>laser 좌표계의 값을 base_link 좌표계로 바꾸는 가장 최근의 변환입니다. 그 이동 값은 base_link에서 본 라이다의 위치입니다.</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== 부록 ===================== -->
+<section class="lec" id="ref" data-num="A" data-group="부록" data-title="한눈에 보기" data-track="false">
+  <div class="manhead"><b>INDEX</b><span>부록</span><span>Quick Reference</span></div>
+  <h2>한눈에 보기</h2>
+  <p class="lead">이 자료에 나온 용어, 명령, Python API, 그리고 문제가 생겼을 때 확인할 것을 모았습니다.</p>
+
+  <h3>용어</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>용어</th><th>원래 이름</th><th>뜻</th><th>장</th></tr></thead>
+    <tbody>
+      <tr><td>배포판</td><td class="onm">distribution</td><td>ROS 2의 버전 이름. Ubuntu 22.04에는 Humble</td><td>1</td></tr>
+      <tr><td>underlay / overlay</td><td class="onm">underlay / overlay</td><td>먼저 source한 설치본 / 그 위에 얹은 내 워크스페이스. overlay가 우선</td><td>2</td></tr>
+      <tr><td>ROS_DOMAIN_ID</td><td class="onm">domain ID</td><td>같은 번호끼리만 서로 발견하게 나누는 환경 변수</td><td>2</td></tr>
+      <tr><td>노드</td><td class="onm">node</td><td>한 가지 일을 맡는 실행 단위</td><td>3</td></tr>
+      <tr><td>Topic / Service / Action</td><td class="onm">topic / service / action</td><td>계속 흘려보내기 / 요청과 응답 / 목표·피드백·결과</td><td>3</td></tr>
+      <tr><td>네임스페이스</td><td class="onm">namespace</td><td>이름 앞에 붙어 무리를 나누는 부분</td><td>3</td></tr>
+      <tr><td>인터페이스</td><td class="onm">interface</td><td>메시지·서비스·액션의 형식 (<code>.msg</code>, <code>.srv</code>, <code>.action</code>)</td><td>4 · 7</td></tr>
+      <tr><td>bag</td><td class="onm">bag</td><td>토픽을 시간과 함께 기록한 파일. 그대로 재생 가능</td><td>5</td></tr>
+      <tr><td>패키지</td><td class="onm">package</td><td>노드 코드, launch·설정 파일, 의존성을 묶은 단위</td><td>6</td></tr>
+      <tr><td>워크스페이스</td><td class="onm">workspace</td><td>패키지 소스(<code>src/</code>)를 모아 빌드하는 디렉터리</td><td>6</td></tr>
+      <tr><td>colcon</td><td class="onm"><b>col</b>lective <b>con</b>struction</td><td>워크스페이스의 패키지들을 빌드·설치하는 도구</td><td>6</td></tr>
+      <tr><td>콜백</td><td class="onm">callback</td><td>일이 생기면 실행기가 불러 주는 함수</td><td>6</td></tr>
+      <tr><td>QoS</td><td class="onm"><b>Q</b>uality <b>o</b>f <b>S</b>ervice</td><td>신뢰성·보관 개수·늦게 온 구독자 처리 등 전달 방식 약속</td><td>7</td></tr>
+      <tr><td>Future</td><td class="onm">future</td><td>나중에 결과가 채워지는 객체</td><td>8</td></tr>
+      <tr><td>실행기</td><td class="onm">executor</td><td>대기 중인 일을 꺼내 콜백을 실행하는 반복문 (<code>spin</code>)</td><td>8</td></tr>
+      <tr><td>교착 상태</td><td class="onm">deadlock</td><td>서로를 기다리며 영원히 멈춘 상태</td><td>8</td></tr>
+      <tr><td>파라미터</td><td class="onm">parameter</td><td>노드마다 가진, 실행할 때 바꿀 수 있는 설정값</td><td>10</td></tr>
+      <tr><td>리매핑</td><td class="onm">remapping</td><td>실행할 때 토픽·서비스 이름을 바꾸는 것</td><td>10</td></tr>
+      <tr><td>bringup 패키지</td><td class="onm">bring up</td><td>launch·설정 파일만 모아 전체 시스템을 띄우는 패키지</td><td>10</td></tr>
+      <tr><td>URDF / xacro</td><td class="onm"><b>U</b>nified <b>R</b>obot <b>D</b>escription <b>F</b>ormat / <b>X</b>ML m<b>acro</b></td><td>링크와 조인트로 로봇 모양을 기술하는 XML / 그 매크로 판</td><td>11</td></tr>
+      <tr><td>링크 / 조인트</td><td class="onm">link / joint</td><td>단단한 부품 / 부품을 잇는 관절</td><td>11</td></tr>
+      <tr><td>좌표계 / 변환</td><td class="onm">frame / transform</td><td>원점과 세 축 / 두 좌표계 사이의 이동과 회전</td><td>12</td></tr>
+      <tr><td>쿼터니언</td><td class="onm">quaternion</td><td>회전을 나타내는 수 네 개 (x, y, z, w)</td><td>12</td></tr>
+      <tr><td>map / odom / base_link</td><td class="onm">map / <b>odom</b>etry / base link</td><td>지도 고정 / 출발점 고정·오차 누적 / 로봇 몸체 좌표계</td><td>12</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>명령</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>명령</th><th>하는 일</th><th>장</th></tr></thead>
+    <tbody>
+      <tr><td><code>source /opt/ros/humble/setup.bash</code></td><td>ROS 2 환경 불러오기</td><td>2</td></tr>
+      <tr><td><code>ros2 run 패키지 실행파일</code></td><td>노드 하나 실행</td><td>4</td></tr>
+      <tr><td><code>ros2 node list</code> / <code>info</code></td><td>노드 목록 / 노드의 토픽·서비스·액션</td><td>4</td></tr>
+      <tr><td><code>ros2 topic list -t</code> / <code>info -v</code></td><td>토픽 목록과 형식 / 발행·구독자와 QoS</td><td>4 · 7</td></tr>
+      <tr><td><code>ros2 topic echo</code> / <code>hz</code> / <code>pub</code></td><td>내용 보기 / 주기 / 직접 발행</td><td>4</td></tr>
+      <tr><td><code>ros2 interface show 형식</code></td><td>메시지·서비스·액션의 필드 보기</td><td>4</td></tr>
+      <tr><td><code>ros2 service call 이름 형식 "요청"</code></td><td>서비스 호출</td><td>4</td></tr>
+      <tr><td><code>ros2 action send_goal 이름 형식 "목표" --feedback</code></td><td>액션 목표 보내기</td><td>4</td></tr>
+      <tr><td><code>ros2 param list</code> / <code>get</code> / <code>set</code> / <code>dump</code></td><td>파라미터 보기·바꾸기·YAML로 출력</td><td>4</td></tr>
+      <tr><td><code>rqt_graph</code> / <code>rqt</code> / <code>rviz2</code></td><td>연결 그림 / GUI 도구 모음 / 3차원 시각화</td><td>5</td></tr>
+      <tr><td><code>ros2 bag record -o 이름 토픽…</code> / <code>info</code> / <code>play</code></td><td>기록 / 정보 / 재생</td><td>5</td></tr>
+      <tr><td><code>ros2 pkg create --build-type ament_python 이름</code></td><td>Python 패키지 뼈대 만들기 (<code>src/</code>에서)</td><td>6</td></tr>
+      <tr><td><code>colcon build --symlink-install --packages-select 패키지</code></td><td>빌드 (워크스페이스 최상위에서)</td><td>6</td></tr>
+      <tr><td><code>source install/setup.bash</code></td><td>빌드한 내 패키지 불러오기</td><td>6</td></tr>
+      <tr><td><code>rosdep install --from-paths src --ignore-src -y</code></td><td>의존 패키지 한꺼번에 설치</td><td>6</td></tr>
+      <tr><td><code>... --ros-args -p 이름:=값 --params-file 파일 -r 원래:=새</code></td><td>실행할 때 파라미터·설정 파일·리매핑</td><td>10</td></tr>
+      <tr><td><code>ros2 launch 패키지 파일.launch.py 인자:=값</code></td><td>launch 파일로 여러 노드 실행</td><td>10</td></tr>
+      <tr><td><code>check_urdf</code> / <code>xacro 파일.xacro</code></td><td>URDF 검사 / xacro를 URDF로 변환</td><td>11</td></tr>
+      <tr><td><code>ros2 run tf2_ros tf2_echo 부모 자식</code></td><td>두 좌표계 사이의 변환 출력</td><td>12</td></tr>
+      <tr><td><code>ros2 run tf2_tools view_frames</code></td><td>TF 트리를 PDF로</td><td>12</td></tr>
+      <tr><td><code>ros2 run tf2_ros static_transform_publisher ...</code></td><td>고정 변환 발행</td><td>12</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Python API (rclpy)</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>코드</th><th>하는 일</th><th>장</th></tr></thead>
+    <tbody>
+      <tr><td><code>rclpy.init()</code> · <code>rclpy.spin(node)</code> · <code>rclpy.shutdown()</code></td><td>시작 · 콜백 실행 반복 · 종료</td><td>6</td></tr>
+      <tr><td><code>class MyNode(Node)</code>, <code>super().__init__('이름')</code></td><td>노드 정의</td><td>6</td></tr>
+      <tr><td><code>create_timer(초, 콜백)</code></td><td>주기적으로 콜백 호출</td><td>6</td></tr>
+      <tr><td><code>get_logger().info(...)</code></td><td>로그</td><td>5</td></tr>
+      <tr><td><code>create_publisher(형식, '토픽', qos)</code> · <code>pub.publish(msg)</code></td><td>발행</td><td>7</td></tr>
+      <tr><td><code>create_subscription(형식, '토픽', 콜백, qos)</code></td><td>구독</td><td>7</td></tr>
+      <tr><td><code>qos_profile_sensor_data</code>, <code>QoSProfile(...)</code></td><td>QoS 지정</td><td>7</td></tr>
+      <tr><td><code>create_service(형식, '이름', 콜백)</code></td><td>서비스 서버</td><td>8</td></tr>
+      <tr><td><code>create_client(형식, '이름')</code> · <code>wait_for_service()</code> · <code>call_async(req)</code></td><td>서비스 클라이언트</td><td>8</td></tr>
+      <tr><td><code>future.add_done_callback(함수)</code> · <code>spin_until_future_complete(node, future)</code></td><td>응답 처리</td><td>8</td></tr>
+      <tr><td><code>MultiThreadedExecutor</code>, <code>ReentrantCallbackGroup</code></td><td>콜백 동시 실행</td><td>8</td></tr>
+      <tr><td><code>ActionServer(node, 형식, '이름', 실행함수)</code></td><td>액션 서버</td><td>9</td></tr>
+      <tr><td><code>ActionClient(node, 형식, '이름')</code> · <code>send_goal_async(goal, feedback_callback=...)</code></td><td>액션 클라이언트</td><td>9</td></tr>
+      <tr><td><code>declare_parameter('이름', 기본값)</code> · <code>get_parameter('이름').value</code></td><td>파라미터</td><td>10</td></tr>
+      <tr><td><code>TransformBroadcaster(node)</code> · <code>sendTransform(t)</code></td><td>TF 발행</td><td>12</td></tr>
+      <tr><td><code>Buffer()</code>, <code>TransformListener(buffer, node)</code> · <code>lookup_transform(target, source, time)</code></td><td>TF 조회</td><td>12</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>문제가 생겼을 때</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>증상</th><th>먼저 확인할 것</th><th>장</th></tr></thead>
+    <tbody>
+      <tr><td><code>ros2: command not found</code></td><td>그 터미널에서 <code>source /opt/ros/humble/setup.bash</code>를 했나</td><td>2</td></tr>
+      <tr><td>내 패키지가 "Package not found"</td><td>빌드 후 그 터미널에서 <code>source install/setup.bash</code>를 했나</td><td>2 · 6</td></tr>
+      <tr><td>다른 터미널·컴퓨터의 노드가 안 보임</td><td>양쪽 <code>ROS_DOMAIN_ID</code>가 같나, <code>ROS_LOCALHOST_ONLY</code>가 켜져 있나, 같은 네트워크인가</td><td>2</td></tr>
+      <tr><td>남의 노드가 보이거나 내 로봇이 남의 명령에 움직임</td><td>나만의 <code>ROS_DOMAIN_ID</code> 설정</td><td>2</td></tr>
+      <tr><td>토픽이 연결되지 않음</td><td><code>rqt_graph</code>로 이름 확인, <code>ros2 topic info</code>로 발행·구독자 수 확인</td><td>4 · 5</td></tr>
+      <tr><td>새 실행 파일이 "No executable found"</td><td><code>setup.py</code>의 <code>entry_points</code>에 등록했나, 다시 빌드했나</td><td>6</td></tr>
+      <tr><td><code>topic echo</code>로는 보이는데 내 노드가 못 받음</td><td><code>ros2 topic info -v</code>로 QoS 비교 (BEST_EFFORT 발행 ↔ RELIABLE 구독)</td><td>7</td></tr>
+      <tr><td>노드가 멈춘 듯 콜백이 안 불림</td><td>콜백 안에서 <code>sleep</code>, 무거운 계산, 서비스 응답 기다리기를 하고 있지 않나</td><td>8</td></tr>
+      <tr><td>launch·YAML 파일을 못 찾음</td><td><code>setup.py</code>의 <code>data_files</code>로 설치했나, 새 파일 추가 후 다시 빌드했나</td><td>10</td></tr>
+      <tr><td>파라미터 값이 안 바뀜</td><td>YAML 맨 위 이름 = 실제 노드 이름(네임스페이스 포함)? <code>ros__parameters</code>? 형식(1 vs 1.0)?</td><td>10</td></tr>
+      <tr><td>RViz2에 아무것도 안 보임</td><td>Fixed Frame이 TF 트리에 있나, Displays의 경고, QoS</td><td>5 · 12</td></tr>
+      <tr><td>TF lookup 실패</td><td><code>view_frames</code>로 트리가 이어졌나, 부모가 둘인 좌표계는 없나, <code>use_sim_time</code>이 노드마다 같나</td><td>12</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

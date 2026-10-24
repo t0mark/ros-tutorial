@@ -1,0 +1,243 @@
+{
+  "version": 1,
+  "title": "Arduino LED 연결",
+  "canvas": {
+    "width": 1200,
+    "height": 800
+  },
+  "parts": [
+    {
+      "id": "arduino",
+      "name": "Arduino · 주요 핀",
+      "width": 220,
+      "height": 150,
+      "pins": [
+        {
+          "id": "D13",
+          "x": 40,
+          "y": 0,
+          "label": "D13"
+        },
+        {
+          "id": "D12",
+          "x": 80,
+          "y": 0,
+          "label": "D12"
+        },
+        {
+          "id": "D11",
+          "x": 120,
+          "y": 0,
+          "label": "D11"
+        },
+        {
+          "id": "D10",
+          "x": 160,
+          "y": 0,
+          "label": "D10"
+        },
+        {
+          "id": "V5",
+          "x": 40,
+          "y": 150,
+          "label": "5V"
+        },
+        {
+          "id": "GND",
+          "x": 80,
+          "y": 150,
+          "label": "GND"
+        },
+        {
+          "id": "A0",
+          "x": 140,
+          "y": 150,
+          "label": "A0"
+        },
+        {
+          "id": "A1",
+          "x": 180,
+          "y": 150,
+          "label": "A1"
+        }
+      ],
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 220 150\"><rect x=\"2\" y=\"2\" width=\"216\" height=\"146\" rx=\"14\" fill=\"#247c87\"/><rect x=\"55\" y=\"50\" width=\"125\" height=\"45\" rx=\"4\" fill=\"#26383e\"/><rect x=\"0\" y=\"50\" width=\"35\" height=\"45\" fill=\"#bbc4c2\"/><text x=\"55\" y=\"76\" fill=\"#ffffff\" font-size=\"12\" font-family=\"sans-serif\">ARDUINO</text><text x=\"23\" y=\"23\" fill=\"#ffffff\" font-size=\"12\" font-family=\"sans-serif\">13     12     11     10</text><text x=\"25\" y=\"138\" fill=\"#ffffff\" font-size=\"12\" font-family=\"sans-serif\">5V   GND     A0   A1</text><text x=\"55\" y=\"113\" fill=\"#d8edec\" font-size=\"11\" font-family=\"sans-serif\">teaching model</text></svg>"
+    },
+    {
+      "id": "raspberry",
+      "name": "Raspberry Pi · 주요 핀",
+      "width": 220,
+      "height": 160,
+      "pins": [
+        {
+          "id": "V3",
+          "x": 30,
+          "y": 0,
+          "label": "3V3"
+        },
+        {
+          "id": "V5",
+          "x": 65,
+          "y": 0,
+          "label": "5V"
+        },
+        {
+          "id": "GND",
+          "x": 100,
+          "y": 0,
+          "label": "GND"
+        },
+        {
+          "id": "GPIO17",
+          "x": 140,
+          "y": 0,
+          "label": "GPIO17"
+        },
+        {
+          "id": "GPIO27",
+          "x": 180,
+          "y": 0,
+          "label": "GPIO27"
+        }
+      ],
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 220 160\"><rect x=\"2\" y=\"2\" width=\"216\" height=\"156\" rx=\"13\" fill=\"#477b47\"/><rect x=\"64\" y=\"62\" width=\"65\" height=\"60\" rx=\"4\" fill=\"#2d3e35\"/><rect x=\"175\" y=\"70\" width=\"43\" height=\"58\" fill=\"#c5cac2\"/><text x=\"22\" y=\"44\" fill=\"#f4f2d9\" font-size=\"10\" font-family=\"sans-serif\">3V3  5V  GND  17  27</text><text x=\"23\" y=\"144\" fill=\"#ffffff\" font-size=\"15\" font-family=\"sans-serif\">RASPBERRY PI</text></svg>"
+    },
+    {
+      "id": "resistor",
+      "name": "저항",
+      "width": 120,
+      "height": 40,
+      "pins": [
+        {
+          "id": "A",
+          "x": 0,
+          "y": 20,
+          "label": "A"
+        },
+        {
+          "id": "B",
+          "x": 120,
+          "y": 20,
+          "label": "B"
+        }
+      ],
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 120 40\"><path d=\"M0 20 H25 M95 20 H120\" stroke=\"#64716a\" stroke-width=\"3\"/><rect x=\"25\" y=\"7\" width=\"70\" height=\"26\" rx=\"6\" fill=\"#e9ce97\"/><path d=\"M40 7 V33 M52 7 V33\" stroke=\"#9c563e\" stroke-width=\"7\"/><path d=\"M68 7 V33\" stroke=\"#be5d37\" stroke-width=\"7\"/><path d=\"M84 7 V33\" stroke=\"#b99e4e\" stroke-width=\"4\"/></svg>"
+    },
+    {
+      "id": "led",
+      "name": "LED",
+      "width": 70,
+      "height": 90,
+      "pins": [
+        {
+          "id": "A",
+          "x": 20,
+          "y": 90,
+          "label": "양극 +"
+        },
+        {
+          "id": "K",
+          "x": 50,
+          "y": 90,
+          "label": "음극 −"
+        }
+      ],
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 70 90\"><path d=\"M20 90 V48 M50 90 V48\" stroke=\"#68756c\" stroke-width=\"3\"/><path d=\"M10 55 V30 A25 25 0 0 1 60 30 V55 Z\" fill=\"#dc775f\" stroke=\"#9c4536\" stroke-width=\"2\"/><path d=\"M20 28 Q20 15 30 13\" fill=\"none\" stroke=\"#f8c4ae\" stroke-width=\"5\"/><rect x=\"6\" y=\"53\" width=\"58\" height=\"8\" rx=\"3\" fill=\"#b95645\"/></svg>"
+    },
+    {
+      "id": "ground",
+      "name": "접지",
+      "width": 60,
+      "height": 50,
+      "pins": [
+        {
+          "id": "GND",
+          "x": 30,
+          "y": 0,
+          "label": "GND"
+        }
+      ],
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 60 50\"><path d=\"M30 0 V20 M8 20 H52 M15 30 H45 M23 40 H37\" stroke=\"#334a3e\" stroke-width=\"3\" fill=\"none\"/></svg>"
+    }
+  ],
+  "components": [
+    {
+      "id": "board",
+      "part": "arduino",
+      "x": 160,
+      "y": 180,
+      "rotation": 0,
+      "label": "Arduino Uno (주요 핀)"
+    },
+    {
+      "id": "R1",
+      "part": "resistor",
+      "x": 490,
+      "y": 140,
+      "rotation": 0,
+      "label": "R1 · 220 Ω"
+    },
+    {
+      "id": "LED1",
+      "part": "led",
+      "x": 740,
+      "y": 190,
+      "rotation": 0,
+      "label": "LED1"
+    }
+  ],
+  "wires": [
+    {
+      "id": "w1",
+      "from": {
+        "component": "board",
+        "pin": "D13"
+      },
+      "to": {
+        "component": "R1",
+        "pin": "A"
+      },
+      "color": "#c56a40",
+      "points": []
+    },
+    {
+      "id": "w2",
+      "from": {
+        "component": "R1",
+        "pin": "B"
+      },
+      "to": {
+        "component": "LED1",
+        "pin": "A"
+      },
+      "color": "#c56a40",
+      "points": []
+    },
+    {
+      "id": "w3",
+      "from": {
+        "component": "LED1",
+        "pin": "K"
+      },
+      "to": {
+        "component": "board",
+        "pin": "GND"
+      },
+      "color": "#425f77",
+      "points": [
+        {
+          "x": 880,
+          "y": 280
+        },
+        {
+          "x": 880,
+          "y": 430
+        },
+        {
+          "x": 240,
+          "y": 430
+        }
+      ]
+    }
+  ]
+}

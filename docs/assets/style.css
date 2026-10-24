@@ -524,7 +524,9 @@ svg.d .edge-a { stroke: var(--accent); stroke-width: 2.6; fill: none; }
 .szbar { display: block; height: 6px; background: var(--accent); border-radius: 3px; margin: 6px auto 0; }
 
 /* ---------- home (자료 목록) ---------- */
-.home-wrap { max-width: 860px; margin: 0 auto; padding-block: calc(env(safe-area-inset-top, 0px) + 40px) calc(env(safe-area-inset-bottom, 0px) + 80px); display: flex; flex-direction: column; gap: 32px; }
+.home-wrap { max-width: 860px; margin: 0 auto; padding-block: calc(env(safe-area-inset-top, 0px) + 40px) calc(env(safe-area-inset-bottom, 0px) + 80px); display: flex; flex-direction: column; gap: 12px; }
+.home-wrap > h2 { margin: 12px 0 0; }
+.home-wrap > p { margin: 0; }
 .home-head { display: flex; flex-direction: column; gap: 12px; }
 .home-head .manline { font-family: var(--font-mono); font-size: var(--step--1); color: var(--ink-soft); display: flex; gap: 12px; border-bottom: 1px solid var(--rule); padding-bottom: 8px; }
 .home-head .manline span:last-child { margin-left: auto; }
