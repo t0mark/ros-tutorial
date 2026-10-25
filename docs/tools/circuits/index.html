@@ -8,25 +8,58 @@
 <script type="module" src="app.js"></script>
 </head>
 <body>
-<header class="topbar"><a class="brand" href="../../index.html">TEXTBOOK <span>/ 회로도 작업실</span></a><a href="../../index.html">교재로 돌아가기 ↗</a></header>
-<div class="heading"><div><p class="eyebrow">CIRCUIT STUDIO</p><h1>연결을 그림으로.</h1><p>소자를 놓고, 핀을 연결하고, 교재에 담으세요.</p></div><span class="tag">JSON ↔ SVG</span></div>
-<div class="toolbar" aria-label="문서 도구">
- <button id="new">새 회로</button><button id="example">예제 열기</button>
- <label class="button">JSON 열기<input id="open" type="file" accept=".json,application/json" hidden></label>
- <button id="save">JSON 저장</button><button id="export" class="primary">SVG 내보내기 ↗</button>
- <span class="spacer"></span><button id="undo" title="Ctrl+Z">실행 취소</button><button id="redo" title="Ctrl+Shift+Z">다시 실행</button>
-</div>
+<header class="topbar">
+ <a class="brand" href="../../index.html" title="교재 목차로">회로도 작업실</a>
+ <input id="title" class="title" aria-label="회로 제목" maxlength="200">
+ <nav class="actions" aria-label="문서 도구">
+  <button id="new">새 회로</button>
+  <select id="example" aria-label="예제 열기"><option value="">예제 열기…</option></select>
+  <label class="button">열기<input id="open" type="file" accept=".json,application/json" hidden></label>
+  <button id="save">JSON 저장</button>
+  <span class="sep"></span>
+  <button id="undo" title="실행 취소 (Ctrl+Z)" aria-label="실행 취소">↶</button>
+  <button id="redo" title="다시 실행 (Ctrl+Shift+Z)" aria-label="다시 실행">↷</button>
+  <span class="sep"></span>
+  <button id="export-png">PNG</button>
+  <button id="export-svg" class="primary">SVG 내보내기</button>
+ </nav>
+</header>
 <main class="studio">
- <aside class="library"><div class="panel-title"><h2>소자 보관함</h2><span>LIBRARY</span></div><p class="hint">클릭해서 캔버스에 추가하세요.</p><div id="parts"></div>
- <details class="import"><summary>+ 내 SVG 소자 등록</summary><p class="hint">SVG와 고정 핀 좌표를 함께 등록합니다. 좌표는 아래 크기를 기준으로 지정하세요.</p>
- <form id="part-form"><label>소자 ID<input name="id" required placeholder="my_sensor" pattern="[A-Za-z][A-Za-z0-9_-]{0,63}"></label><label>이름<input name="name" required placeholder="온도 센서"></label><div class="fields"><label>너비<input name="width" type="number" min="1" value="120" required></label><label>높이<input name="height" type="number" min="1" value="80" required></label></div><label>SVG 파일<input name="svg" type="file" accept=".svg,image/svg+xml" required></label><label>핀 목록 JSON<textarea name="pins" rows="5">[{"id":"VCC","x":20,"y":80},
-{"id":"GND","x":60,"y":80},
-{"id":"OUT","x":100,"y":80}]</textarea></label><p class="hint">기본 도형·경로·텍스트를 지원합니다. script, CSS, 이미지, 외부 참조는 지원하지 않습니다.</p><button class="primary" type="submit">소자 등록</button></form>
- </details>
+ <aside class="library" aria-label="소자 보관함">
+  <input id="search" type="search" placeholder="소자 검색" aria-label="소자 검색">
+  <p class="hint">미리보기는 같은 배율로 실제 크기 비율을 보여 줍니다. LED·저항처럼 작은 소자만 조금 확대했습니다.</p>
+  <div id="parts"></div>
+  <details class="import"><summary>내 SVG 소자 등록</summary>
+   <form id="part-form">
+    <p class="hint">SVG의 viewBox 좌표로 고정 핀을 지정합니다. 2.54 mm 핀 간격 = 10 단위가 내장 소자와 같은 배율입니다.</p>
+    <label>소자 ID<input name="id" required placeholder="my-sensor" pattern="[A-Za-z][A-Za-z0-9_\-]{0,63}"></label>
+    <label>이름<input name="name" required placeholder="온도 센서"></label>
+    <div class="fields"><label>너비<input name="width" type="number" min="1" value="120" required></label><label>높이<input name="height" type="number" min="1" value="80" required></label></div>
+    <label>SVG 파일<input name="svg" type="file" accept=".svg,image/svg+xml" required></label>
+    <label>핀 목록 JSON<textarea name="pins" rows="5" spellcheck="false">[{"id":"VCC","x":20,"y":80,"dir":"down"},
+ {"id":"GND","x":60,"y":80,"dir":"down"},
+ {"id":"OUT","x":100,"y":80,"dir":"down"}]</textarea></label>
+    <button class="primary" type="submit">등록</button>
+   </form>
+  </details>
  </aside>
- <section class="workspace" aria-label="회로 캔버스"><div class="canvasbar"><span><b id="document-name"></b> <span id="counts"></span></span><div><label><input id="grid" type="checkbox" checked> 격자</label><select id="zoom" aria-label="캔버스 배율"><option value="fit" selected>화면에 맞춤</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.5">150%</option></select></div></div><div id="viewport" tabindex="0"><div id="drawing"></div></div><div class="canvasfoot"><span id="instruction">핀 두 개를 차례로 클릭해 연결하세요.</span><span>20px SNAP</span></div></section>
- <aside class="inspector"><div class="panel-title"><h2>속성</h2><span>INSPECTOR</span></div><div id="inspector"></div><div class="help"><h3>작업 방법</h3><p>소자: 드래그로 이동<br>핀 → 핀: 전선 연결<br>전선: 클릭 후 색상·경유점 편집<br>Esc: 선택·연결 취소<br>Delete: 선택 항목 삭제</p><p>기본 보드는 주요 핀만 표시한 교육용 그림입니다. 실제 배선 전 보드의 핀맵을 확인하세요.</p><p id="storage-status">이 브라우저에 자동 저장합니다.</p></div></aside>
+ <section class="workspace" aria-label="회로 캔버스">
+  <svg id="stage" tabindex="0" aria-label="회로 편집 영역">
+   <g id="viewport">
+    <g id="layer-components"></g>
+    <g id="layer-wires"></g>
+    <g id="layer-overlay"></g>
+   </g>
+  </svg>
+  <div id="tip" role="tooltip" hidden></div>
+  <div class="zoom" aria-label="배율">
+   <button id="zoom-out" aria-label="축소">−</button><button id="zoom-reset" title="100%">100%</button><button id="zoom-in" aria-label="확대">+</button><button id="zoom-fit" title="화면에 맞춤 (F)">맞춤</button>
+   <label class="toggle"><input id="grid" type="checkbox" checked> 격자</label>
+  </div>
+  <p id="hint" class="canvas-hint"></p>
+ </section>
+ <aside class="inspector" aria-label="속성"><div id="inspector"></div></aside>
 </main>
-<footer class="status"><span id="status" role="status" aria-live="polite">준비됨</span><span>설치 없이 만드는 회로 그림 · 시뮬레이션 제외</span></footer>
+<footer class="status"><span id="status" role="status" aria-live="polite">준비됨</span><span id="counts"></span><span id="storage"></span></footer>
 </body>
 </html>

@@ -1,95 +1,113 @@
 # 회로도 작업실
 
-공통 기능을 먼저 구현하고 GUI·CLI를 연결한 회로 그림 제작 도구입니다. 회로 시뮬레이션은 제공하지 않습니다. 별도 npm 의존성 없이 브라우저와 Node.js 20 이상에서 실행합니다.
+라즈베리 파이·아두이노 회로를 교재용 그림으로 그리는 도구입니다. 시뮬레이션은 제공하지 않습니다. 사람이 쓰는 웹 GUI와 AI가 쓰는 CLI가 같은 코어와 같은 JSON을 사용합니다. npm 의존성 없이 브라우저와 Node.js 20 이상에서 실행합니다.
 
 ## 구조
 
 ```text
-src/core.js       순수 JS: 데이터 검증, 편집 작업, 핀 좌표 계산, SVG 출력
-src/parts.js      내장 소자 SVG와 고정 핀 정의
-src/example.js    공통 코어로 생성하는 Arduino LED 예제
-cli.mjs           파일 입출력과 작업 전달만 담당하는 CLI
-web/              같은 코어를 import하는 웹 GUI
-build.mjs         GUI와 코어를 docs/tools/circuits/로 복사
-examples/         GUI·CLI에서 공통으로 여는 회로 JSON
+src/core.js          문서 검증·편집 작업·좌표·자동 배선·SVG 출력 (DOM·파일 의존성 없음)
+src/validate.js      소자 정의와 SVG 부분집합 검증
+src/parts/           내장 소자 SVG와 고정 핀 정의
+  kit.js             핀 헤더·나사 단자·텍스트 등 공통 그리기 도구
+  boards.js          Raspberry Pi 5, Arduino Uno R3, ESP32 DevKitC
+  breadboard.js      브레드보드 400홀·830홀(전원 레일이 가운데에서 좌우 절반으로 나뉨). 모든 구멍이 핀: A1–J30/J63, 전원 레일 T+/T-/B+/B- 1–25/50
+  basic.js           LED(색 선택), 저항(값 조절, 색띠 자동), 택트 스위치, 접지
+  motors.js          TT 모터, N20 모터, 서보 SG90, 스텝 모터 28BYJ-48
+  modules.js         L298N, TB6612FNG, ULN2003, MPU-6050, 카메라 모듈, 2D 라이다 FHL-LD19P, 라이다용 USB-UART 어댑터
+  extras.js          초음파 HC-SR04, 블루투스 HC-05, 피에조 부저, AA 건전지, 2구·3구 배터리 홀더
+  displays.js        7인치 HDMI 소형 모니터, HDMI 모니터(축소 표시)
+src/example.js       예제 회로 (GUI 예제 메뉴·CLI example·테스트 공용)
+cli.mjs              파일 입출력만 담당하는 CLI
+web/                 같은 코어를 import하는 GUI
+build.mjs            web/ + src/ → docs/tools/circuits/
+scripts/             소자 미리보기·예제 렌더링 (headless Chrome)
 ```
 
-코어에는 DOM·파일 시스템·localStorage 의존성이 없습니다. `apply(document, operation)`은 원본을 변경하지 않고, 검증된 새 문서를 반환합니다. GUI와 CLI가 독자적인 회로 편집·출력 로직을 갖지 않도록 구성했습니다.
+`apply(document, operation)`은 원본을 바꾸지 않고 검증된 새 문서를 반환합니다. GUI와 CLI 모두 이 함수로만 문서를 편집합니다.
 
-## GUI 실행
-
-저장소 루트에서 실행합니다.
+## GUI
 
 ```bash
 npm run build --prefix utils/circuits
 python3 -m http.server 8000 --directory docs
 ```
 
-http://localhost:8000/tools/circuits/ 또는 교재 목차의 **회로도 작업실**을 엽니다. 빌드 결과를 저장소에 포함하므로 Pages 배포에 Node.js가 필요하지 않습니다. 생성된 `docs/tools/circuits/`는 직접 수정하지 마세요.
+http://localhost:8000/tools/circuits/ 를 엽니다. 빌드 결과를 저장소에 포함하므로 Pages 배포에 Node.js가 필요하지 않습니다. `docs/tools/circuits/`는 생성물이므로 직접 수정하지 마세요.
 
-- 소자 보관함 클릭: 소자 추가. 소자 드래그: 20px 격자에 맞춰 이동.
-- 핀 두 개를 순서대로 클릭: 전선 연결. Esc: 연결 취소.
-- 소자 선택: 위치·라벨·90도 단위 회전 편집.
-- 전선 선택: 색상·경유점 JSON 편집. 빈 경유점은 자동 직각 배선.
-- 선택 항목 Delete: 삭제. 소자 삭제 시 연결된 전선도 삭제.
-- 실행 취소·다시 실행, Ctrl+Z·Ctrl+Shift+Z, 배율 변경, 격자 표시 지원.
-- JSON 저장·열기: CLI와 문서 교환. SVG 내보내기: 격자·선택 표시 없는 교재 그림.
-- 현재 문서는 브라우저에 자동 저장. 장기 보관과 다른 기기 이동은 JSON 저장 사용.
+| 조작 | 동작 |
+| --- | --- |
+| 보관함 소자 클릭 / 캔버스로 끌어 놓기 | 소자 추가 |
+| 핀에서 다른 핀으로 끌기, 또는 핀 두 개를 차례로 클릭 | 전선 연결. 커서 근처 핀에 자석처럼 붙고 연결될 경로를 미리 보여 줌 |
+| 핀에 마우스 올리기 | 핀 이름·기능 표시 |
+| 소자 끌기 / 방향키(Shift: 50 px) | 10 px 격자 단위 이동 |
+| 전선 클릭 후 구간 손잡이 끌기 | 경로 수정 (수동 경유점으로 저장) |
+| 선택한 전선의 끝 원 끌기 | 다른 핀으로 끝점 이동 |
+| `Shift`+클릭 / `Shift`+빈 곳 끌기 / `Ctrl+A` | 여러 개 선택 추가·해제 / 영역 선택 / 전체 선택. 선택한 소자는 함께 이동·회전·복제·삭제 |
+| `R` / `Shift+R` | 90° 회전 (중심 유지) |
+| `Delete`, `Ctrl+D`, `Ctrl+Z`, `Ctrl+Shift+Z`, `Esc` | 삭제, 복제, 실행 취소, 다시 실행, 취소 |
+| 빈 곳 끌기 / 휠 / `Ctrl`+휠 / `F` | 화면 이동 / 스크롤 / 확대·축소 / 그림 전체 보기 (작업 영역 무제한) |
 
-내장 보드는 주요 핀만 표현한 교육용 그림입니다. 실제 보드 전체 핀맵·기구 도면이 아니며 전기적 검증은 수행하지 않습니다. 캔버스 밖에 배치한 소자는 출력에서 잘릴 수 있으므로 문서 속성에서 크기를 조절하세요. 전선 교차점은 자동 접속점이 아니고, JSON의 끝점 연결만 유효합니다.
+- 전선 색은 핀에 따라 자동 지정합니다(GND 검정, 전원 빨강, 신호는 차례로 다른 색). 색은 인스펙터에서 바꿀 수 있습니다.
+- 전선 종류는 단자가 정합니다. USB 포트(`cable: "usb"`)는 USB 포트끼리 케이블로, HDMI(`cable: "hdmi"`)는 HDMI끼리, 카메라 CSI(`cable: "ribbon"`)는 실제 폭의 FPC 리본(16 mm, Pi 쪽 끝은 22핀 단자로 좁아짐)으로만 연결하며 포트 하나에 케이블 하나만 꽂힙니다. 양 끝에 플러그(리본은 보강판)를 그리고 플러그 길이만큼 곧게 뺀 뒤 꺾습니다. 케이블이 소자 그림에 이미 붙어 있는 단자는 핀에 `"plug": false`를 지정합니다. 2단 USB-A처럼 한 핀에 여러 케이블이 꽂히는 포트는 `"ports": 2`로 지정하며, 두 번째 플러그는 한 칸 옆에 겹쳐 그립니다. Raspberry Pi 5의 USB 핀은 `USB2`(USB 2.0 2단), `USB3`(USB 3.0 2단)입니다.
+- **SVG 내보내기**·**PNG**(3배 해상도)는 격자·선택 표시 없이 그림 내용에 맞춰 자릅니다.
+- 현재 문서는 브라우저에 자동 저장합니다. 보관·이동은 **JSON 저장**을 쓰세요.
 
-## CLI 실행
+## 자동 배선
+
+전선은 핀마다 정의한 방향(`dir`)으로 빠져나와 10 px 격자 위의 A* 탐색으로 직각 경로를 찾습니다. 꺾임이 적고, 소자 몸체와 다른 핀 위를 피하며, 이미 놓인 전선과 겹치지 않는 경로를 우선합니다. 같은 문서는 GUI와 CLI에서 항상 같은 경로가 나옵니다. 전선의 `points`가 비어 있으면 자동 배선, 값이 있으면 그 경유점을 직각으로 이어 그립니다.
+
+## CLI
 
 ```bash
 node utils/circuits/cli.mjs --help
-node utils/circuits/cli.mjs parts
-node utils/circuits/cli.mjs new /tmp/circuit.json "LED 실습"
-node utils/circuits/cli.mjs example /tmp/example.json
-node utils/circuits/cli.mjs inspect /tmp/example.json
-node utils/circuits/cli.mjs validate /tmp/example.json
-node utils/circuits/cli.mjs apply /tmp/circuit.json utils/circuits/examples/operations.json
-node utils/circuits/cli.mjs export /tmp/circuit.json /tmp/circuit.svg
+node utils/circuits/cli.mjs parts                 # 내장 소자 목록
+node utils/circuits/cli.mjs parts arduino-uno     # 한 소자의 핀 id·라벨·방향
+node utils/circuits/cli.mjs examples
+node utils/circuits/cli.mjs example /tmp/c.json 3
+node utils/circuits/cli.mjs new /tmp/c.json "LED 실습"
+node utils/circuits/cli.mjs apply /tmp/c.json utils/circuits/examples/operations.json
+node utils/circuits/cli.mjs inspect /tmp/c.json
+node utils/circuits/cli.mjs export /tmp/c.json /tmp/c.svg      # 내용에 맞춰 자름
 ```
 
-`apply`에 작업 객체 또는 배열을 담은 JSON 파일을 전달합니다. 네 번째 경로를 주면 원본 대신 새 JSON에 저장합니다. 배열 중 하나라도 실패하면 파일을 변경하지 않습니다. new/example은 기존 파일을 덮어쓰지 않습니다. apply·add-part는 원본을 갱신하고 export는 지정한 SVG 파일을 갱신합니다.
+`apply`는 작업 객체 또는 배열을 담은 JSON을 받습니다. 하나라도 실패하면 몇 번째 작업이 왜 실패했는지 출력하고 파일을 바꾸지 않습니다. new/example은 기존 파일을 덮어쓰지 않습니다.
 
-### 작업 목록
-
-| type | 필수 데이터 | 동작 |
+| type | 데이터 | 동작 |
 | --- | --- | --- |
-| `addPart` | `part` 소자 정의 객체 | 라이브러리에 소자 등록 |
-| `add` | `id`, `part` | 배치. `x`, `y`, `rotation`, `label` 지정 가능 |
-| `move` | `id`, `x`, `y` | 소자 이동 |
-| `rotate` | `id`, `rotation` | 0/90/180/270도 회전 |
-| `label` | `id`, `label` | 소자 라벨 변경 |
+| `add` | `part`, 선택: `id`, `x`, `y`, `rotation`, `label`, `props` | 소자 배치. `x`,`y`는 회전된 외곽의 좌상단 |
+| `move` | `id`, `x`, `y` | 이동 |
+| `translate` | `ids`, `dx`, `dy` | 여러 소자를 함께 이동. 둘 다 이동하는 소자 사이 전선의 경유점도 함께 이동 |
+| `rotate` | `id`, `rotation` (0/90/180/270) | 중심을 유지하며 회전 |
+| `label` | `id`, `label` | 구분용 이름 변경. 그림에는 표시하지 않음 |
+| `props` | `id`, `props` | 조절 가능한 값 변경. 예: 저항 `{"resistance": 4700}`, LED `{"color": "green"}`(red/green/yellow/blue/white/orange). `null`은 기본값으로 |
 | `remove` | `id` | 소자와 연결 전선 삭제 |
-| `connect` | `id`, `from`, `to` | 핀 연결. `color`, `points` 지정 가능 |
-| `wire` | `id` | `color` 또는 `points` 갱신 |
+| `connect` | `from`, `to`, 선택: `id`, `color`, `points` | 핀 연결. 종류는 단자에 따라 자동, 색 생략 시 자동 |
+| `wire` | `id`, 선택: `color`, `style`, `points`, `from`, `to` | 전선 수정. `points: []`는 자동 배선 |
 | `disconnect` | `id` | 전선 삭제 |
-| `document` | `title` 또는 `canvas` | 제목 또는 캔버스 크기 변경 |
+| `addPart` / `removePart` | `part` / `id` | 사용자 소자 등록 / 미사용 정의 삭제 |
+| `document` | `title` | 제목 |
 
-회전은 소자의 좌상단 원점 기준입니다. `from`/`to`는 `{"component":"배치소자ID","pin":"핀ID"}` 형식입니다. `points`는 전역 캔버스 좌표의 `[{"x":400,"y":200}]`이며 이동해도 경유점은 유지되고 끝점만 핀을 따라갑니다. 같은 핀에 여러 전선을 연결할 수 있습니다. 색상은 `#RRGGBB`로 지정합니다.
+끝점은 `{"component": "UNO", "pin": "D13"}` 형식입니다. 핀 id는 `parts <소자ID>`로 확인합니다. Raspberry Pi 5의 GPIO는 `GPIO17`처럼 BCM 번호, 전원 핀은 `3V3_1`, `5V_2`, `GND_6`처럼 물리 핀 번호를 붙입니다. `style`은 `wire`(점퍼선), `cable`(USB 케이블), `ribbon`(FPC 리본)입니다.
 
-## 공통 문서 형식 (version 1)
+## 문서 형식 (version 2)
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "title": "회로 제목",
-  "canvas": {"width": 1200, "height": 800},
   "parts": [],
-  "components": [],
-  "wires": []
+  "components": [{"id": "UNO", "part": "arduino-uno", "x": 80, "y": 160, "rotation": 0, "label": "Arduino Uno"}],
+  "wires": [{"id": "W1", "from": {"component": "UNO", "pin": "D13"}, "to": {"component": "R1", "pin": "1"}, "color": "#1f6fd1", "style": "wire", "points": []}]
 }
 ```
 
-`parts`에 SVG 외형과 핀 정의를 함께 내장합니다. 외부 파일 없이 문서 하나로 GUI·CLI에서 동일하게 복원할 수 있습니다. 실제 형식은 [examples/arduino-led.json](examples/arduino-led.json)을 참고하세요. 형식이 틀리거나 존재하지 않는 핀을 참조하는 문서는 거부합니다.
+작업 영역에는 크기 제한이 없어 문서에 캔버스 크기를 저장하지 않습니다. 내장 소자는 id로 참조하고, `parts`에는 사용자가 등록한 소자만 SVG째 내장합니다. version 1 문서는 열 수 없습니다.
 
 ## AI로 만든 SVG 소자 등록
 
-1. SVG는 `viewBox="0 0 너비 높이"`로 작성하고, 핀 좌표도 같은 좌표계를 사용합니다.
-2. GUI의 **내 SVG 소자 등록**에 SVG 파일·크기·핀 목록을 입력하거나, 아래 소자 JSON을 만듭니다.
-3. CLI에서는 `node utils/circuits/cli.mjs add-part /tmp/circuit.json part.json`을 실행합니다.
+1. SVG는 `viewBox="0 0 너비 높이"`로 작성하고 핀 좌표도 같은 좌표계를 씁니다. 내장 소자와 크기를 맞추려면 **2.54 mm 핀 간격 = 10 단위**로 그리고 핀을 10의 배수 좌표에 둡니다.
+2. 핀마다 `dir`(`up`/`down`/`left`/`right`, 전선이 빠져나갈 방향)을 지정합니다. 생략하면 가장 가까운 가장자리 방향을 씁니다.
+3. GUI의 **내 SVG 소자 등록**을 쓰거나, 아래 JSON을 만들어 `cli.mjs add-part <회로.json> <소자.json>`을 실행합니다.
 
 ```json
 {
@@ -99,14 +117,23 @@ node utils/circuits/cli.mjs export /tmp/circuit.json /tmp/circuit.svg
   "height": 80,
   "svg": "<svg viewBox=\"0 0 120 80\"><rect x=\"2\" y=\"2\" width=\"116\" height=\"76\" fill=\"#508060\"/></svg>",
   "pins": [
-    {"id": "VCC", "label": "3.3V", "x": 20, "y": 80},
-    {"id": "GND", "x": 60, "y": 80},
-    {"id": "OUT", "x": 100, "y": 80}
+    {"id": "VCC", "label": "VCC 3.3V", "x": 20, "y": 80, "dir": "down"},
+    {"id": "GND", "x": 60, "y": 80, "dir": "down"},
+    {"id": "OUT", "x": 100, "y": 80, "dir": "down"}
   ]
 }
 ```
 
-ID는 영문자로 시작하며 영숫자·밑줄·하이픈으로 구성합니다. 핀은 소자 영역 안에 고정합니다. SVG는 기본 도형, path, g, text/tspan과 표현 속성을 지원하며 script, style/CSS, 이미지, 외부 참조, defs/use는 거부합니다. AI에 **스타일을 각 도형 속성으로 작성하고 외부 리소스·CSS 없이 기본 SVG 도형으로 출력**하도록 요청하세요. XML 선언·주석 없이 `<svg>` 루트부터 작성합니다.
+SVG는 기본 도형, path, g, text/tspan과 표현 속성만 허용합니다. script, style/CSS, 이미지, 외부 참조, defs/use/그라디언트는 거부합니다. AI에 **스타일을 각 도형 속성으로 작성하고, 외부 리소스·CSS·그라디언트 없이 기본 SVG 도형으로, XML 선언·주석 없이 `<svg>` 루트부터** 출력하도록 요청하세요. 음영은 반투명 채우기(`#00000026` 등)로 표현합니다.
+
+내장 소자를 추가·수정할 때는 `src/parts/kit.js` 도구를 쓰고 미리보기로 핀 위치를 확인합니다. 빨간 원과 눈금이 각 핀과 전선 방향입니다.
+
+```bash
+node utils/circuits/scripts/preview-parts.mjs /tmp/parts.html --png /tmp/parts.png --only l298n,uln2003
+node utils/circuits/scripts/render-examples.mjs /tmp/examples --png
+```
+
+내장 소자 이름은 「종류 (모델명)」 형식입니다. 예: `모터 드라이버 (L298N)`. 저항은 인스펙터의 저항값(220, 4.7k, 4k7, 1M 형식)을 바꾸면 색띠가, LED는 색을 고르면 몸체 색이 바뀝니다. 내장 소자는 실제 치수를 1 mm ≈ 3.94 px(2.54 mm = 10 px)로 맞춘 교육용 그림입니다. 기구 도면이 아니며 전기적 검증은 하지 않습니다. 그림에는 소자 이름 텍스트를 붙이지 않습니다. 설명은 교재 본문이나 캡션에 쓰세요.
 
 ## 검증
 
@@ -115,6 +142,4 @@ npm test --prefix utils/circuits
 npm run build --prefix utils/circuits
 ```
 
-공통 모델의 JSON 왕복, 핀 좌표·회전, 연결 유지와 삭제, SVG 입력 검증·텍스트 escaping, CLI 일괄 작업 실패 시 원본 보존을 검사합니다.
-
-2026-10-24 Chrome 브라우저에서 소자 추가·이동·회전, 핀 연결, 실행 취소·다시 실행, 사용자 SVG 등록, JSON 저장·재열기, SVG 다운로드, 새로고침 후 복원과 모바일 가로 넘침 여부를 확인했습니다.
+내장 소자 검증(핀 격자·범위·Pi 40핀), JSON 왕복, 회전과 핀 방향, 모든 예제의 자동 배선(직각·핀 방향 출발), 수동 경유점 유지, 핀 기반 색·케이블 자동 지정, 실패 작업의 원본 보존, SVG 입력 거부·escaping·내용 맞춤 출력, CLI 일괄 작업을 검사합니다.
