@@ -38,6 +38,10 @@ export function validate(doc) {
     assert(builtinById.has(c.part) || partIDs.has(c.part), `소자 정의가 없습니다: ${c.part}`);
     assert(number(c.x) && number(c.y) && ROTATIONS.includes(c.rotation), `소자 좌표·회전을 확인하세요: ${c.id}`);
     assert(typeof c.label === 'string' && c.label.length <= 200, `소자 라벨을 확인하세요: ${c.id}`);
+    if (c.leads !== undefined) { // moved free leads: connector id → {dx, dy} from the default plug position
+      const conns = partOf(doc, c.part).connectors ?? [];
+      assert(c.leads && typeof c.leads === 'object' && Object.entries(c.leads).every(([k, v]) => conns.some(x => x.id === k && x.role === 'lead') && v && number(v.dx) && number(v.dy)), `리드선 위치를 확인하세요: ${c.id}`);
+    }
     if (c.props !== undefined) {
       const params = partOf(doc, c.part).params ?? [];
       assert(c.props && typeof c.props === 'object' && !Array.isArray(c.props), `소자 값(props)을 확인하세요: ${c.id}`);
@@ -62,17 +66,77 @@ export function validate(doc) {
     assert(w.style === styleFor(doc, w.from), `${w.id}: 전선 종류는 핀에 맞춰 ${styleFor(doc, w.from)}이어야 합니다.`);
     assert(Array.isArray(w.points) && w.points.length <= 200 && w.points.every(pointOK), `경유점 좌표를 확인하세요: ${w.id}`);
   }
+  assert(Array.isArray(doc.mates), 'mates 배열이 필요합니다.');
+  const matedEnds = new Set();
+  for (const m of doc.mates) {
+    assert(m && idOK(m.id) && !ids.has(m.id), `커넥터 연결 id가 잘못되었거나 중복됩니다: ${m?.id}`); ids.add(m.id);
+    if (m.ends) { // a cable with a plug at each end between two board sockets, conductors matched by signal
+      const [a, b] = m.ends.map(e => connectorOf(doc, e));
+      assert(a?.role === 'socket' && b?.role === 'socket' && m.ends.length === 2, `${m.id}: 케이블은 소켓 두 개를 연결합니다.`);
+      assert(cablePairs(a, b), `${m.id}: ${a.kind}와 ${b.kind} 소켓은 신호가 맞지 않아 케이블로 연결할 수 없습니다.`);
+    } else {
+      const plug = connectorOf(doc, m.plug), socket = connectorOf(doc, m.socket);
+      assert(plug?.role === 'plug' && socket?.role === 'socket', `${m.id}: 플러그와 소켓 커넥터를 연결해야 합니다.`);
+      assert(plug.kind === socket.kind, `${m.id}: ${plug.kind} 플러그는 ${socket.kind} 소켓에 꽂을 수 없습니다.`);
+    }
+    assert(m.points === undefined || (Array.isArray(m.points) && m.points.length <= 200 && m.points.every(pointOK)), `경유점 좌표를 확인하세요: ${m.id}`);
+    for (const end of mateSides(m)) {
+      const key = `${end.component}.${end.connector}`;
+      assert(!matedEnds.has(key), `${m.id}: ${key}는 이미 연결되어 있습니다.`); matedEnds.add(key);
+    }
+  }
+  // Pins inside a mated connector are taken by the plug; jumper wires can't use them.
+  for (const w of doc.wires) for (const end of [w.from, w.to])
+    assert(!matedPin(doc, end), `${w.id}: ${end.component}.${end.pin}은 커넥터로 연결되어 있어 전선을 꽂을 수 없습니다.`);
   return doc;
 }
 
+// ---------- connectors (plug on a flying lead ↔ socket on a board) ----------
+export function connectorOf(doc, end) {
+  const c = doc.components.find(c => c.id === end?.component);
+  return c && (partOf(doc, c.part).connectors ?? []).find(k => k.id === end.connector);
+}
+// Connector of a pin, if the pin belongs to one.
+export function pinConnector(doc, end) {
+  const c = doc.components.find(c => c.id === end.component);
+  const k = c && (partOf(doc, c.part).connectors ?? []).find(k => k.pins.includes(end.pin));
+  return k ? {component: c.id, connector: k.id, def: k} : null;
+}
+// The two connector ends of a mate: plug→socket, or both sockets of a cable.
+export const mateSides = m => m.ends ?? [m.plug, m.socket];
+export const matedConnectors = (doc, componentId) => new Set(doc.mates.flatMap(mateSides).filter(e => e.component === componentId).map(e => e.connector));
+// Conductor pairs of a socket-to-socket cable: [index in a, index in b], matched by signal name ('V+', 'GND', …).
+export function cablePairs(a, b) {
+  if (!a.signals || !b.signals || a.pins.length !== b.pins.length) return null;
+  const pairs = a.signals.map((sig, i) => [i, b.signals.indexOf(sig)]);
+  return pairs.every(([, j]) => j >= 0) ? pairs : null;
+}
+export function matedPin(doc, end) {
+  const k = pinConnector(doc, end);
+  return !!k && matedConnectors(doc, end.component).has(k.connector);
+}
+// A plug pin dropped on a socket pin (either order) mates the two connectors when their kinds match;
+// a socket pin dropped on another socket whose signals match joins them with a two-plug cable.
+export function mateFor(doc, a, b) {
+  const ka = pinConnector(doc, a), kb = pinConnector(doc, b);
+  if (!ka || !kb || ka.component === kb.component) return null;
+  const end = k => ({component: k.component, connector: k.connector});
+  const taken = k => doc.mates.some(m => mateSides(m).some(e => e.component === k.component && e.connector === k.connector));
+  if (taken(ka) || taken(kb)) return null;
+  if (ka.def.role === 'socket' && kb.def.role === 'socket') return cablePairs(ka.def, kb.def) ? {ends: [end(ka), end(kb)]} : null;
+  if (ka.def.kind !== kb.def.kind || ka.def.role === kb.def.role) return null;
+  const [plug, socket] = ka.def.role === 'plug' ? [ka, kb] : [kb, ka];
+  return {plug: end(plug), socket: end(socket)};
+}
+
 export function createCircuit(title = '새 회로') {
-  return validate({version: VERSION, title, parts: [], components: [], wires: []});
+  return validate({version: VERSION, title, parts: [], components: [], wires: [], mates: []});
 }
 // The drawing area is unbounded; a `canvas` size from older drafts is dropped.
-export const parseCircuit = text => { const {canvas, ...doc} = JSON.parse(text); return validate(doc); };
+export const parseCircuit = text => { const {canvas, ...doc} = JSON.parse(text); return validate({mates: [], ...doc}); };
 export const serialize = doc => JSON.stringify(validate(doc), null, 2) + '\n';
 export function nextId(doc, prefix) {
-  const used = new Set([...doc.components, ...doc.wires].map(item => item.id));
+  const used = new Set([...doc.components, ...doc.wires, ...doc.mates].map(item => item.id));
   let n = 1; while (used.has(`${prefix}${n}`)) n++;
   return `${prefix}${n}`;
 }
@@ -135,7 +199,23 @@ export function pinInfo(doc, endpoint) {
   assert(p, `핀이 없습니다: ${endpoint.component}.${endpoint.pin}`);
   let dir = pinDir(part, p);
   for (let r = 0; r < c.rotation; r += 90) dir = ROT_DIR[dir];
+  const lead = part.connectors?.find(k => k.role === 'lead' && k.pins.includes(p.id));
+  if (lead) return {...leadPin(doc, c, part, lead, p, dir), pin: p, component: c, part};
   return {...localToGlobal(doc, c, p.x, p.y), dir, pin: p, component: c, part};
+}
+// A pin on a free lead's plug: the plug sits at its default spot plus the moved offset and turns so its contacts
+// face away from where the lead leaves the body (the lead then enters the back of the plug).
+const CLOCKWISE = ['up', 'right', 'down', 'left'];
+function leadPin(doc, c, part, k, p, defaultDir) {
+  const local = k.pins.map(id => part.pins.find(q => q.id === id));
+  const home = localToGlobal(doc, c, local.reduce((s, q) => s + q.x, 0) / local.length, local.reduce((s, q) => s + q.y, 0) / local.length);
+  const offset = c.leads?.[k.id] ?? {dx: 0, dy: 0}, center = {x: home.x + offset.dx, y: home.y + offset.dy};
+  const exit = localToGlobal(doc, c, k.exit.x, k.exit.y), vx = center.x - exit.x, vy = center.y - exit.y;
+  const dir = Math.abs(vx) > Math.abs(vy) ? (vx > 0 ? 'right' : 'left') : (vy > 0 ? 'down' : 'up');
+  const g = localToGlobal(doc, c, p.x, p.y);
+  let rx = g.x - home.x, ry = g.y - home.y;
+  for (let i = (CLOCKWISE.indexOf(dir) - CLOCKWISE.indexOf(defaultDir) + 4) % 4; i > 0; i--) [rx, ry] = [-ry, rx];
+  return {x: round6(center.x + rx), y: round6(center.y + ry), dir};
 }
 export const pinPosition = (doc, endpoint) => { const {x, y} = pinInfo(doc, endpoint); return {x, y}; };
 export const pinShortLabel = pin => (pin.label ?? pin.id).split(/ · | \(/)[0];
@@ -195,6 +275,7 @@ export function apply(doc, command) {
       const ids = new Set(a.ids);
       for (const id of ids) { const c = d.components.find(c => c.id === id); assert(c, `소자를 찾을 수 없습니다: ${id}`); c.x += a.dx; c.y += a.dy; }
       for (const w of d.wires) if (ids.has(w.from.component) && ids.has(w.to.component)) w.points = w.points.map(p => ({x: p.x + a.dx, y: p.y + a.dy}));
+      for (const m of d.mates) if (m.points && mateSides(m).every(e => ids.has(e.component))) m.points = m.points.map(p => ({x: p.x + a.dx, y: p.y + a.dy}));
       break;
     }
     case 'rotate': { // keeps the component center, snapped to the grid
@@ -206,13 +287,25 @@ export function apply(doc, command) {
       break;
     }
     case 'label': component().label = a.label; break;
+    case 'lead': { // move a free lead's plug; dx = dy = 0 puts it back
+      const c = component(), k = partOf(d, c.part).connectors?.find(k => k.id === a.connector && k.role === 'lead');
+      assert(k, `움직일 수 있는 리드선이 아닙니다: ${a.id}.${a.connector}`);
+      assert(number(a.dx) && number(a.dy), 'lead에는 dx, dy가 필요합니다.');
+      const leads = {...c.leads};
+      if (a.dx || a.dy) leads[k.id] = {dx: a.dx, dy: a.dy}; else delete leads[k.id];
+      if (Object.keys(leads).length) c.leads = leads; else delete c.leads;
+      break;
+    }
     case 'props': { // merge values; null resets one to its default
       const c = component(), props = {...c.props, ...a.props};
       for (const key of Object.keys(props)) if (props[key] === null) delete props[key];
       if (Object.keys(props).length) c.props = props; else delete c.props;
       break;
     }
-    case 'remove': component(); d.components = d.components.filter(c => c.id !== a.id); d.wires = d.wires.filter(w => w.from.component !== a.id && w.to.component !== a.id); break;
+    case 'remove': component(); d.components = d.components.filter(c => c.id !== a.id); d.wires = d.wires.filter(w => w.from.component !== a.id && w.to.component !== a.id);
+      d.mates = d.mates.filter(m => mateSides(m).every(e => e.component !== a.id)); break;
+    case 'mate': d.mates.push(a.ends ? {id: a.id ?? nextId(d, 'J'), ends: structuredClone(a.ends)} : {id: a.id ?? nextId(d, 'J'), plug: structuredClone(a.plug), socket: structuredClone(a.socket)}); break;
+    case 'unmate': assert(d.mates.some(m => m.id === a.id), `커넥터 연결을 찾을 수 없습니다: ${a.id}`); d.mates = d.mates.filter(m => m.id !== a.id); break;
     case 'connect': {
       const problem = cableProblem(d, a.from, a.to);
       assert(!problem, problem);
@@ -221,6 +314,12 @@ export function apply(doc, command) {
       break;
     }
     case 'wire': {
+      const m = d.mates.find(m => m.id === a.id);
+      if (m) { // a mated connector's lead: only its route can change
+        assert(a.points !== undefined && Object.keys(a).every(k => k === 'id' || k === 'points'), '커넥터 연결은 경로(points)만 바꿀 수 있습니다.');
+        if (a.points.length) m.points = structuredClone(a.points); else delete m.points;
+        break;
+      }
       const w = wire();
       for (const key of ['color', 'style', 'points', 'from', 'to']) if (a[key] !== undefined) w[key] = structuredClone(a[key]);
       break;
@@ -353,8 +452,32 @@ const extend = (end, length) => length ? {...end, x: end.x + DIR_VEC[end.dir][0]
 
 export function routePath(doc, a, b, options = {}) {
   const la = plugLead(a), lb = b.dir ? plugLead(b) : 0;
-  if (!la && !lb) return routeBetween(doc, a, b, options);
-  return simplify([{x: a.x, y: a.y}, ...routeBetween(doc, extend(a, la), extend(b, lb), options), {x: b.x, y: b.y}]);
+  if (!la && !lb) return straightenEnds(routeBetween(doc, a, b, options), a.dir, b.dir);
+  return straightenEnds(simplify([{x: a.x, y: a.y}, ...routeBetween(doc, extend(a, la), extend(b, lb), options), {x: b.x, y: b.y}]), a.dir, b.dir);
+}
+// Bundles (connector leads, cables) leave the part and enter the plug straight: route between points a little
+// outside each end and add the stubs.
+// When both ends sit equally off the grid (e.g. both connector centres at y = 85), route on a grid shifted by
+// that amount so an aligned pair gets a straight run instead of a detour to the nearest grid line.
+export function routeBundle(doc, from, to, options = {}) {
+  const frac = v => ((v % GRID) + GRID) % GRID;
+  const sx = frac(from.x) === frac(to.x) ? frac(from.x) : 0, sy = frac(from.y) === frac(to.y) ? frac(from.y) : 0;
+  const shift = (p, k) => ({...p, x: p.x + k * sx, y: p.y + k * sy});
+  const path = routePath(doc, shift(extend(from, GRID), -1), shift(extend(to, 2 * GRID), -1), options).map(p => shift(p, 1));
+  return straightenEnds(simplify([{x: from.x, y: from.y}, ...path, {x: to.x, y: to.y}]), from.dir, to.dir);
+}
+// An end that is off the grid (e.g. the centre of a 2-pin connector) would start with a tiny sideways jog;
+// shift the first straight run instead so the line leaves (and arrives) straight.
+export function straightenEnds(path, startDir, endDir) {
+  const fix = (pts, dir) => {
+    if (!dir || pts.length < 3) return pts;
+    const key = dir === 'left' || dir === 'right' ? 'y' : 'x', [p0, p1] = pts;
+    if (p0[key] === p1[key] || Math.abs(p0[key] - p1[key]) >= GRID || p0[key === 'y' ? 'x' : 'y'] !== p1[key === 'y' ? 'x' : 'y']) return pts;
+    const old = p1[key], out = [p0, ...pts.slice(2).map(p => ({...p}))];
+    for (let i = 1; i < out.length - 1 && out[i][key] === old; i++) out[i][key] = p0[key];
+    return simplify(out);
+  };
+  return fix(fix(path, startDir).reverse(), endDir).reverse();
 }
 function routeBetween(doc, a, b, {field = obstacleField(doc), occupied = new Map()} = {}) {
   const s = {x: Math.round(a.x / GRID), y: Math.round(a.y / GRID)}, t = {x: Math.round(b.x / GRID), y: Math.round(b.y / GRID)};
@@ -404,7 +527,86 @@ export function routeWires(doc, {only = null, cache = null} = {}) {
     markOccupied(occupied, path);
     result.set(w.id, path);
   }
+  for (const c of doc.components) for (const k of freeLeads(doc, c)) { // always re-routed; there are few
+    const {from, to} = leadEnds(doc, c, k), path = routeBundle(doc, from, to, {field, occupied});
+    markOccupied(occupied, path);
+    result.set(leadKey(c, k), path);
+  }
+  for (const m of doc.mates) {
+    let path = only && !only.has(m.id) ? cache?.get(m.id) : null;
+    if (!path) { const {from, to} = mateEnds(doc, m); path = m.points?.length ? straightenEnds(simplify(orthogonal([from, extend(from, GRID), ...m.points, extend(to, GRID), to], from.dir, to.dir)), from.dir, to.dir) : routeBundle(doc, from, to, {field, occupied}); }
+    markOccupied(occupied, path);
+    result.set(m.id, path);
+  }
   return result;
+}
+
+// Seated plug housings by connector family: colour, edge, length out of the socket (px).
+const PLUG_HOUSINGS = {xh: ['#efece4', '#b3ad9e', 16], ph: ['#f1eee6', '#b3ad9e', 12], mr30: ['#f2b51b', '#b9850c', 22], xt30: ['#f2b51b', '#b9850c', 26], kf: ['#2fa24e', '#1d6e33', 14]};
+const housingOf = kind => PLUG_HOUSINGS[kind.split('-')[0]] ?? ['#efece4', '#b3ad9e', 16];
+// Socket geometry: pin positions in mating order, centre, outward direction.
+function socketGeometry(doc, end) {
+  const k = connectorOf(doc, end), pins = k.pins.map(pin => pinInfo(doc, {component: end.component, pin}));
+  const center = {x: pins.reduce((s, p) => s + p.x, 0) / pins.length, y: pins.reduce((s, p) => s + p.y, 0) / pins.length};
+  return {k, pins, center, dir: pins[0].dir};
+}
+// The bundle runs from where the lead leaves the plug part to the back of the plug seated in the socket.
+export function mateEnds(doc, m) {
+  if (m.ends) { // cable: from the back of one seated plug to the back of the other
+    const [a, b] = m.ends.map(e => { const s = socketGeometry(doc, e), [vx, vy] = DIR_VEC[s.dir], back = housingOf(s.k.kind)[2] - INSERT; return {x: s.center.x + vx * back, y: s.center.y + vy * back, dir: s.dir}; });
+    return {from: a, to: b};
+  }
+  const plugPart = doc.components.find(c => c.id === m.plug.component), k = connectorOf(doc, m.plug);
+  let dir = k.exit.dir;
+  for (let r = 0; r < plugPart.rotation; r += 90) dir = ROT_DIR[dir];
+  const s = socketGeometry(doc, m.socket), [vx, vy] = DIR_VEC[s.dir], back = housingOf(k.kind)[2] - INSERT;
+  return {from: {...localToGlobal(doc, plugPart, k.exit.x, k.exit.y), dir}, to: {x: s.center.x + vx * back, y: s.center.y + vy * back, dir: s.dir}};
+}
+
+// ---------- free leads (a plug on a flexible lead that the user can drag anywhere) ----------
+export const freeLeads = (doc, c) => (partOf(doc, c.part).connectors ?? []).filter(k => k.role === 'lead');
+export const leadKey = (c, k) => `${c.id}/${k.id}`;
+const FREE_PLUG_LENGTH = 30; // black 3-pin servo/Dupont housing
+function leadPlug(doc, c, k) {
+  const pins = k.pins.map(pin => pinInfo(doc, {component: c.id, pin}));
+  const center = {x: pins.reduce((s, p) => s + p.x, 0) / pins.length, y: pins.reduce((s, p) => s + p.y, 0) / pins.length};
+  return {k, pins, center, dir: pins[0].dir};
+}
+// The lead runs from where it leaves the body to the back of the plug; the plug's contacts face along the pin direction.
+export function leadEnds(doc, c, k) {
+  let dir = k.exit.dir;
+  for (let r = 0; r < c.rotation; r += 90) dir = ROT_DIR[dir];
+  const s = leadPlug(doc, c, k), [vx, vy] = DIR_VEC[s.dir];
+  return {from: {...localToGlobal(doc, c, k.exit.x, k.exit.y), dir}, to: {x: s.center.x - vx * FREE_PLUG_LENGTH, y: s.center.y - vy * FREE_PLUG_LENGTH, dir: OPPOSITE[s.dir]}};
+}
+// Plug housing box of a free lead (for drawing and for grabbing it in the editor).
+export function leadPlugBox(doc, c, k) {
+  const s = leadPlug(doc, c, k), [vx, vy] = DIR_VEC[s.dir], across = vx ? 'y' : 'x', coords = s.pins.map(p => p[across]);
+  const lo = Math.min(...coords) - 5, hi = Math.max(...coords) + 5;
+  const a = {x: s.center.x + vx * 3, y: s.center.y + vy * 3}, b = {x: s.center.x - vx * FREE_PLUG_LENGTH, y: s.center.y - vy * FREE_PLUG_LENGTH};
+  return vx ? {x: Math.min(a.x, b.x), y: lo, width: Math.abs(b.x - a.x), height: hi - lo} : {x: lo, y: Math.min(a.y, b.y), width: hi - lo, height: Math.abs(b.y - a.y)};
+}
+export function leadMarkup(doc, c, k, path, {attrs = ''} = {}) {
+  const s = leadPlug(doc, c, k), box = leadPlugBox(doc, c, k), [vx, vy] = DIR_VEC[s.dir];
+  // The lead arrives at the back of the plug; conductor k ends at contact k.
+  const back = {x: s.center.x - vx * FREE_PLUG_LENGTH, y: s.center.y - vy * FREE_PLUG_LENGTH};
+  const tail = s.pins.map(p => ({x: p.x - vx * FREE_PLUG_LENGTH, y: p.y - vy * FREE_PLUG_LENGTH}));
+  let out = bundle(path, {...s, center: back, pins: tail}, k.colors);
+  out += `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="1.5" fill="#1f1f22" stroke="#000000" stroke-width="0.5"/>`
+    + `<rect x="${box.x + 1}" y="${box.y + 1}" width="${vx ? box.width - 2 : 2.5}" height="${vx ? 2.5 : box.height - 2}" fill="#ffffff" fill-opacity="0.16"/>`;
+  for (const p of s.pins) out += `<rect x="${p.x - 2.6}" y="${p.y - 2.6}" width="5.2" height="5.2" fill="#050505"/><rect x="${p.x - 1.2}" y="${p.y - 1.2}" width="2.4" height="2.4" fill="#c7a548"/>`;
+  return `<g ${attrs}>${out}</g>`;
+}
+
+// Parallel copy of an orthogonal polyline, d px to the left of travel.
+function offsetPath(path, d) {
+  const normal = (a, b) => { const len = Math.hypot(b.x - a.x, b.y - a.y) || 1; return [-(b.y - a.y) / len, (b.x - a.x) / len]; };
+  return path.map((p, i) => {
+    const nIn = i > 0 ? normal(path[i - 1], p) : null, nOut = i < path.length - 1 ? normal(p, path[i + 1]) : null;
+    const [ax, ay] = nIn ?? nOut, [bx, by] = nOut ?? nIn;
+    const same = Math.abs(ax - bx) < 1e-9 && Math.abs(ay - by) < 1e-9;
+    return same ? {x: p.x + ax * d, y: p.y + ay * d} : {x: p.x + (ax + bx) * d, y: p.y + (ay + by) * d};
+  });
 }
 
 // ---------- rendering ----------
@@ -464,15 +666,68 @@ export function wireMarkup(w, path, {attrs = '', ends = []} = {}) {
 
 export const wireEnds = (doc, w) => [pinOf(doc, w.from), pinOf(doc, w.to)];
 
+// A mated connector: the plug's lead as a bundle of coloured conductors, and the plug housing seated in the socket.
+// Conductor k lines up with socket pin k at the socket end.
+// Plug housing seated in a socket: from the socket pins outward along the socket direction, spanning all pins.
+// The plug sits INSERT px deep in the socket's opening (narrower than the socket shroud) and sticks out behind it.
+const INSERT = 8;
+function seatedPlug(s, kind) {
+  const [color, edge, length] = housingOf(kind), [vx, vy] = DIR_VEC[s.dir], across = vx ? 'y' : 'x', coords = s.pins.map(p => p[across]);
+  const lo = Math.min(...coords) - 4.5, hi = Math.max(...coords) + 4.5;
+  const a = {x: s.center.x - vx * INSERT, y: s.center.y - vy * INSERT}, b = {x: s.center.x + vx * (length - INSERT), y: s.center.y + vy * (length - INSERT)};
+  const box = vx ? {x: Math.min(a.x, b.x), y: lo, width: Math.abs(b.x - a.x), height: hi - lo} : {x: lo, y: Math.min(a.y, b.y), width: hi - lo, height: Math.abs(b.y - a.y)};
+  let out = `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="1.5" fill="${color}" stroke="${edge}" stroke-width="0.8"/>`
+    + `<rect x="${box.x + 1}" y="${box.y + 1}" width="${vx ? box.width - 2 : 2.5}" height="${vx ? 2.5 : box.height - 2}" fill="#ffffff" fill-opacity="0.35"/>`;
+  for (const pin of s.pins) { // wire entry at the back of each cavity
+    const cx = pin.x + vx * (length - INSERT - 3), cy = pin.y + vy * (length - INSERT - 3);
+    out += `<rect x="${cx - 1.6}" y="${cy - 1.6}" width="3.2" height="3.2" fill="${shade(color, 0.7)}"/>`;
+  }
+  return out;
+}
+// Side offset of each pin of a connector across a path segment (conductor spacing 3.6 px).
+function lanes(s, a, b) {
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1, [nx, ny] = [-(b.y - a.y) / len, (b.x - a.x) / len];
+  const pitch = s.pins.length > 1 ? Math.hypot(s.pins[1].x - s.pins[0].x, s.pins[1].y - s.pins[0].y) : 10;
+  return s.pins.map(pin => ((pin.x - s.center.x) * nx + (pin.y - s.center.y) * ny) * Math.min(1, 3.6 / pitch));
+}
+// Conductors of a bundle along `path`; conductor k lines up with s.pins[k] at the path's end.
+function bundle(path, s, colors) {
+  const endLanes = lanes(s, path[path.length - 2] ?? path[0], path[path.length - 1]);
+  return s.pins.map((pin, k) => {
+    const p = roundedPath(offsetPath(path, endLanes[k]), 6);
+    return `<path d="${p}" fill="none" stroke="${shade(colors[k], 0.62)}" stroke-width="3.6" stroke-linejoin="round" stroke-linecap="round"/><path d="${p}" fill="none" stroke="${colors[k]}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }).join('');
+}
+const SIGNAL_COLORS = {'V+': '#d32f2f', GND: '#1a1a1a'};
+
+// A mated connector: the plug's lead as a bundle of coloured conductors and the plug housing seated in the socket.
+// A cable between two sockets gets a seated plug at both ends; red for V+, black for GND.
+export function mateMarkup(doc, m, path, {attrs = ''} = {}) {
+  if (m.ends) {
+    const [sa, sb] = m.ends.map(e => socketGeometry(doc, e));
+    const colors = sb.k.signals.map((sig, j) => SIGNAL_COLORS[sig] ?? WIRE_COLORS[j % WIRE_COLORS.length]);
+    // Conductors keep one order along the cable; where the two sockets' pin orders differ, the swap is hidden
+    // inside the plug housing, as in a real crimped cable.
+    return `<g ${attrs}>${bundle(path, sb, colors)}${seatedPlug(sa, sa.k.kind)}${seatedPlug(sb, sb.k.kind)}</g>`;
+  }
+  const plug = connectorOf(doc, m.plug), s = socketGeometry(doc, m.socket);
+  return `<g ${attrs}>${bundle(path, s, plug.colors)}${seatedPlug(s, plug.kind)}</g>`;
+}
+
 export function componentMarkup(doc, c, {attrs = ''} = {}) {
   const part = partOf(doc, c.part);
-  const art = part.render ? part.render(propsOf(doc, c)) : part.svg;
+  const art = part.render ? part.render(propsOf(doc, c), {mated: matedConnectors(doc, c.id)}) : part.svg;
   return `<g ${attrs} transform="${transformOf(doc, c)}"><svg width="${part.width}" height="${part.height}" viewBox="0 0 ${part.width} ${part.height}" overflow="visible">${art}</svg></g>`;
 }
 // Area covered by components and wires.
 export function contentBounds(doc, routes = routeWires(doc)) {
   const xs = [], ys = [];
   for (const c of doc.components) { const b = bounds(doc, c); xs.push(b.x, b.x + b.width); ys.push(b.y, b.y + b.height); }
+  for (const m of doc.mates) for (const p of routes.get(m.id) ?? []) { xs.push(p.x - 14, p.x + 14); ys.push(p.y - 14, p.y + 14); }
+  for (const c of doc.components) for (const k of freeLeads(doc, c)) {
+    const b = leadPlugBox(doc, c, k); xs.push(b.x, b.x + b.width); ys.push(b.y, b.y + b.height);
+    for (const p of routes.get(leadKey(c, k)) ?? []) { xs.push(p.x - 8, p.x + 8); ys.push(p.y - 8, p.y + 8); }
+  }
   for (const w of doc.wires) { // half the cable thickness around each wire
     const r = w.style === 'ribbon' ? RIBBON_WIDTH / 2 + 2 : 10;
     for (const p of routes.get(w.id) ?? []) { xs.push(p.x - r, p.x + r); ys.push(p.y - r, p.y + r); }
@@ -487,6 +742,8 @@ export function renderSVG(doc, {margin = 24, routes = routeWires(doc)} = {}) {
   validate(doc);
   const box = contentBounds(doc, routes), m = margin, x = box.x - m, y = box.y - m, w = box.width + 2 * m, h = box.height + 2 * m;
   const components = doc.components.map(c => componentMarkup(doc, c)).join('');
-  const wires = doc.wires.map(wire => wireMarkup(wire, routes.get(wire.id), {ends: wireEnds(doc, wire)})).join('');
+  const wires = doc.wires.map(wire => wireMarkup(wire, routes.get(wire.id), {ends: wireEnds(doc, wire)})).join('')
+    + doc.mates.map(m => mateMarkup(doc, m, routes.get(m.id))).join('')
+    + doc.components.flatMap(c => freeLeads(doc, c).map(k => leadMarkup(doc, c, k, routes.get(leadKey(c, k))))).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${x} ${y} ${w} ${h}" role="img" aria-label="${escapeXML(doc.title)}"><title>${escapeXML(doc.title)}</title><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#ffffff"/>${components}${wires}</svg>`;
 }

@@ -8,7 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {createCircuit, apply, validate, serialize, parseCircuit, pinPosition, pinInfo, routeWires, renderSVG, validateSVG, validatePart, builtinParts, bounds, GRID, wireMarkup, wireEnds} from '../src/core.js';
 import {examples} from '../src/example.js';
 import {resistorBands} from '../src/parts/basic.js';
-import {parseValue, formatValue, propsOf, componentMarkup} from '../src/core.js';
+import {parseValue, formatValue, propsOf, componentMarkup, mateFor} from '../src/core.js';
 
 const cli = fileURLToPath(new URL('../cli.mjs', import.meta.url));
 const ex = i => examples[i].build();
@@ -21,7 +21,7 @@ test('built-in parts validate, keep pins on the 10 px grid and inside the part',
     assert.equal(part.width % GRID, 0, part.id); assert.equal(part.height % GRID, 0, part.id);
     for (const p of part.pins) assert.ok(p.x % GRID === 0 && p.y % GRID === 0, `${part.id}.${p.id}`);
   }
-  for (const id of ['raspberry-pi-5', 'arduino-uno', 'led', 'resistor', 'ground', 'tt-motor', 'n20-motor', 'servo-sg90', 'stepper-28byj48', 'l298n', 'uln2003', 'mpu6050', 'tact-switch', 'pi-camera', 'lidar-ld19p', 'usb-uart-ld', 'tb6612fng', 'breadboard-half', 'breadboard-full', 'esp32-devkitc', 'hc-sr04', 'hc-05', 'piezo-buzzer', 'battery-aa', 'battery-holder-2aa', 'battery-holder-3aa', 'display-7in-hdmi', 'monitor']) assert.ok(ids.has(id), id);
+  for (const id of ['raspberry-pi-5', 'arduino-uno', 'led', 'resistor', 'ground', 'tt-motor', 'n20-motor', 'servo-sg90', 'stepper-28byj48', 'l298n', 'uln2003', 'mpu6050', 'tact-switch', 'pi-camera', 'lidar-ld19p', 'usb-uart-ld', 'tb6612fng', 'breadboard-half', 'breadboard-full', 'esp32-devkitc', 'hc-sr04', 'hc-05', 'piezo-buzzer', 'battery-aa', 'battery-holder-2aa', 'battery-holder-3aa', 'display-7in-hdmi', 'monitor', 'vacuum-motor', 'vacuum-driver', 'vacuum-battery', 'vacuum-switch', 'buck-szh-ek366', 'cyberbrick-switch']) assert.ok(ids.has(id), id);
 });
 
 test('Raspberry Pi 5 exposes the full 40-pin header', () => {
@@ -139,6 +139,52 @@ test('translate moves several components and the hand-drawn waypoints of wires b
   assert.deepEqual(d.wires.find(w => w.id === 'W1').points, [{x: 250, y: 40}, {x: 550, y: 40}]); // UNO–R1: both ends moved
   assert.deepEqual(d.wires.find(w => w.id === 'W3').points, [{x: 900, y: 400}]);                // LED1–UNO: one end only
   assert.throws(() => apply(d, {type: 'translate', ids: ['nope'], dx: 1, dy: 1}));
+});
+
+test('a plug on a flying lead mates with a matching socket as one connection', () => {
+  let d = createCircuit('m');
+  for (const c of [{type: 'add', id: 'STEP', part: 'stepper-28byj48', x: 0, y: 0}, {type: 'add', id: 'ULN', part: 'uln2003', x: 300, y: 200}, {type: 'add', id: 'DRV', part: 'vacuum-driver', x: 0, y: 400}])
+    d = apply(d, c);
+  const mate = mateFor(d, {component: 'STEP', pin: 'BLUE'}, {component: 'ULN', pin: 'OUT3'});
+  assert.deepEqual(mate, {plug: {component: 'STEP', connector: 'J1'}, socket: {component: 'ULN', connector: 'MOTOR'}});
+  assert.equal(mateFor(d, {component: 'STEP', pin: 'BLUE'}, {component: 'DRV', pin: 'U'}), null, 'kinds must match');
+  d = apply(d, {type: 'mate', id: 'J1', ...mate});
+  assert.ok(routeWires(d).get('J1').length >= 2);
+  assert.notEqual(componentMarkup(d, d.components[0]), componentMarkup(apply(d, {type: 'unmate', id: 'J1'}), d.components[0]), 'the dangling plug is left out once mated');
+  assert.throws(() => apply(d, {type: 'connect', from: {component: 'ULN', pin: 'OUT1'}, to: {component: 'DRV', pin: 'U'}}), /커넥터로 연결/);
+  assert.throws(() => apply(d, {type: 'mate', ...mate}), /이미 연결/);
+  assert.ok(renderSVG(d).includes('#2f6fd6'), 'bundle drawn with the lead colours');
+  assert.equal(apply(d, {type: 'remove', id: 'ULN'}).mates.length, 0);
+  assert.equal(apply(d, {type: 'unmate', id: 'J1'}).mates.length, 0);
+  assert.equal(parseCircuit(JSON.stringify({...d, mates: undefined})).mates.length, 0);
+});
+
+test('two board sockets join with a two-plug cable, conductors matched by signal', () => {
+  let d = createCircuit('c');
+  d = apply(apply(d, {type: 'add', id: 'DRV', part: 'vacuum-driver', x: 0, y: 0}), {type: 'add', id: 'SWB', part: 'cyberbrick-switch', x: 320, y: 20});
+  const mate = mateFor(d, {component: 'DRV', pin: '12V+'}, {component: 'SWB', pin: 'IN-'});
+  assert.deepEqual(mate, {ends: [{component: 'DRV', connector: 'OUT12V'}, {component: 'SWB', connector: 'IN'}]});
+  assert.equal(mateFor(d, {component: 'DRV', pin: 'U'}, {component: 'SWB', pin: 'IN+'}), null, 'MR30 motor socket has no matching signals');
+  d = apply(d, {type: 'mate', id: 'J1', ...mate});
+  const svg = renderSVG(d);
+  assert.ok(svg.includes('#2fa24e') && svg.includes('#d32f2f'), 'green plug at the driver, red V+ conductor');
+  assert.throws(() => apply(d, {type: 'connect', from: {component: 'SWB', pin: 'IN+'}, to: {component: 'DRV', pin: 'BAT+'}}), /커넥터로 연결/);
+  assert.equal(apply(d, {type: 'remove', id: 'SWB'}).mates.length, 0);
+});
+
+test('a free lead (servo) can be moved; its plug turns away from the body and wires follow its pins', () => {
+  let d = apply(createCircuit('s'), {type: 'add', id: 'S1', part: 'servo-sg90', x: 0, y: 0});
+  const before = pinInfo(d, {component: 'S1', pin: 'SIG'});
+  assert.equal(before.dir, 'down');
+  d = apply(d, {type: 'lead', id: 'S1', connector: 'J1', dx: 120, dy: -80});
+  const after = pinInfo(d, {component: 'S1', pin: 'SIG'});
+  assert.equal(after.dir, 'right', 'the plug faces away from where the lead leaves the case');
+  const path = routeWires(d).get('S1/J1');
+  assert.deepEqual(path[0], {x: 110, y: 50});
+  for (let i = 1; i < path.length; i++) assert.ok(path[i].x === path[i - 1].x || path[i].y === path[i - 1].y);
+  assert.throws(() => apply(d, {type: 'lead', id: 'S1', connector: 'NOPE', dx: 1, dy: 1}));
+  assert.equal(apply(d, {type: 'lead', id: 'S1', connector: 'J1', dx: 0, dy: 0}).components[0].leads, undefined);
+  assert.equal(apply(d, {type: 'translate', ids: ['S1'], dx: 50, dy: 0}).components[0].leads.J1.dx, 120, 'the plug moves with the body');
 });
 
 test('removing a component removes only its wires; invalid operations leave the document intact', () => {

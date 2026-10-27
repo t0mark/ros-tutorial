@@ -99,11 +99,7 @@ export const examples = [
     wire('W7', 'UNO.D12', 'ULN.IN4'),
     wire('W8', 'UNO.VIN', 'ULN.VCC'),
     wire('W9', 'UNO.GND_2', 'ULN.GND'),
-    wire('W10', 'STEP.BLUE', 'ULN.OUT1', {color: '#1f6fd1'}),
-    wire('W11', 'STEP.PINK', 'ULN.OUT2', {color: '#f48fb1'}),
-    wire('W12', 'STEP.YELLOW', 'ULN.OUT3', {color: '#f2c200'}),
-    wire('W13', 'STEP.ORANGE', 'ULN.OUT4', {color: '#e5672b'}),
-    wire('W14', 'STEP.RED', 'ULN.COM', {color: '#d32f2f'}),
+    {type: 'mate', id: 'J1', plug: {component: 'STEP', connector: 'J1'}, socket: {component: 'ULN', connector: 'MOTOR'}},
   ])},
 ];
 export const exampleCircuit = () => examples[0].build();

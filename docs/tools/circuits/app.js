@@ -1,6 +1,6 @@
 import {
   createCircuit, apply, parseCircuit, serialize, renderSVG, routeWires, routePath, pinInfo, partOf, library, bounds,
-  componentMarkup, wireMarkup, wireEnds, cableProblem, styleFor, portInfo, usedSlots, propsOf, formatValue, parseValue, roundedPath, contentBounds, simplify, transformOf, wireDefaults, nextId, escapeXML as e,
+  componentMarkup, wireMarkup, wireEnds, cableProblem, styleFor, portInfo, usedSlots, mateFor, mateMarkup, mateEnds, matedPin, mateSides, connectorOf, freeLeads, leadKey, leadMarkup, leadPlugBox, propsOf, formatValue, parseValue, roundedPath, contentBounds, simplify, transformOf, wireDefaults, nextId, escapeXML as e,
   validatePart, GRID,
 } from './core/core.js';
 import {CATEGORIES} from './core/parts/index.js';
@@ -53,7 +53,8 @@ function history(direction) {
 }
 const findComponent = id => doc.components.find(c => c.id === id);
 const findWire = id => doc.wires.find(w => w.id === id);
-const findItem = id => findComponent(id) ?? findWire(id);
+const findMate = id => doc.mates.find(m => m.id === id);
+const findItem = id => findComponent(id) ?? findWire(id) ?? findMate(id);
 
 // ---------- view ----------
 // The drawing area is unbounded: the viewBox follows pan/zoom and the dot grid is a CSS background in step with it.
@@ -95,6 +96,7 @@ function collectPins() {
   for (const c of doc.components) {
     const part = partOf(doc, c.part), dense = part.pins.length > 100; // breadboard: leave room to grab the body
     for (const p of part.pins) {
+      if (matedPin(doc, {component: c.id, pin: p.id})) continue; // inside a seated plug
       const info = pinInfo(doc, {component: c.id, pin: p.id});
       pins.push({component: c.id, pin: p.id, x: info.x, y: info.y, dir: info.dir, label: p.label ?? p.id, dense});
     }
@@ -121,20 +123,26 @@ function drawComponents() {
   layers.components.innerHTML = doc.components.map(c => componentMarkup(doc, c, {attrs: `data-component="${c.id}" class="component"`})).join('');
 }
 function drawWires() {
-  layers.wires.innerHTML = doc.wires.map(w => wireMarkup(w, routes.get(w.id), {attrs: `data-wire-art="${w.id}"`, ends: wireEnds(doc, w)})).join('');
+  layers.wires.innerHTML = doc.wires.map(w => wireMarkup(w, routes.get(w.id), {attrs: `data-wire-art="${w.id}"`, ends: wireEnds(doc, w)})).join('')
+    + doc.mates.map(m => mateMarkup(doc, m, routes.get(m.id), {attrs: `data-mate-art="${m.id}"`})).join('')
+    + doc.components.flatMap(c => freeLeads(doc, c).map(k => leadMarkup(doc, c, k, routes.get(leadKey(c, k))))).join('');
 }
 
 function drawOverlay() {
   const s = 1 / view.scale; // keep handles a constant size on screen
-  let out = doc.wires.map(w => `<path class="hit-wire" data-wire="${w.id}" d="${roundedPath(routes.get(w.id))}" fill="none" stroke="transparent" stroke-width="${Math.max(10, 12 * s)}" stroke-linejoin="round"/>`).join('');
+  let out = [...doc.wires, ...doc.mates].map(w => `<path class="hit-wire" data-wire="${w.id}" d="${roundedPath(routes.get(w.id))}" fill="none" stroke="transparent" stroke-width="${Math.max(findMate(w.id) ? 18 : 10, 12 * s)}" stroke-linejoin="round"/>`).join('');
+  for (const c of doc.components) for (const k of freeLeads(doc, c)) {
+    const b = leadPlugBox(doc, c, k);
+    out += `<rect class="handle" data-lead="${c.id}/${k.id}" x="${b.x}" y="${b.y}" width="${b.width}" height="${b.height}" fill="transparent" style="cursor:move"/>`;
+  }
   for (const c of selectedComponents()) {
     const b = bounds(doc, c), m = 5;
     out += `<rect x="${b.x - m}" y="${b.y - m}" width="${b.width + 2 * m}" height="${b.height + 2 * m}" fill="none" stroke="#0a0a0a" stroke-width="${1.2 * s}" stroke-dasharray="${5 * s} ${3 * s}" pointer-events="none"/>`;
   }
-  for (const w of doc.wires.filter(w => selection.has(w.id)))
+  for (const w of [...doc.wires, ...doc.mates].filter(w => selection.has(w.id)))
     out = `<path d="${roundedPath(routes.get(w.id))}" fill="none" stroke="#0a0a0a" stroke-opacity="0.18" stroke-width="${Math.max(9, 11 * s)}" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>` + out;
-  const w = findWire(single());
-  if (w) { // reshaping handles only when one wire is selected
+  const w = findWire(single()) ?? findMate(single());
+  if (w) { // reshaping handles only when one wire or connector lead is selected
     const path = routes.get(w.id);
     for (let i = 0; i < path.length - 1; i++) {
       const a = path[i], b = path[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y);
@@ -142,14 +150,15 @@ function drawOverlay() {
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, horizontal = a.y === b.y, hw = (horizontal ? 10 : 4) * s, hh = (horizontal ? 4 : 10) * s;
       out += `<rect class="handle" data-segment="${i}" x="${mx - hw / 2}" y="${my - hh / 2}" width="${hw}" height="${hh}" rx="${2 * s}" fill="#ffffff" stroke="#0a0a0a" stroke-width="${1.2 * s}" style="cursor:${horizontal ? 'ns-resize' : 'ew-resize'}"/>`;
     }
-    for (const [end, p] of [['from', path[0]], ['to', path[path.length - 1]]])
+    if (!findMate(w.id)) for (const [end, p] of [['from', path[0]], ['to', path[path.length - 1]]])
       out += `<circle class="handle-end" data-end="${end}" cx="${p.x}" cy="${p.y}" r="${5 * s}" fill="#ffffff" stroke="#0a0a0a" stroke-width="${1.5 * s}"/>`;
   }
   // While wiring, show every pin so targets are discoverable.
   if (action?.type === 'wire' || action?.type === 'end') {
     const used = usedPins();
     out += pins.map(p => `<circle cx="${p.x}" cy="${p.y}" r="${2.2 * s + 1}" fill="${used.has(`${p.component}.${p.pin}`) ? '#0a0a0a' : '#ffffff'}" stroke="#0a0a0a" stroke-width="${0.9 * s}" opacity="0.55" pointer-events="none"/>`).join('');
-    if (action.path) out += `<g opacity="0.85" pointer-events="none">${wireMarkup(action.wire, action.path, {ends: action.ends})}</g>`;
+    if (action.mate) out += `<g opacity="0.85" pointer-events="none">${mateMarkup({...doc, mates: [...doc.mates, action.mate.mate]}, action.mate.mate, action.mate.path)}</g>`;
+    else if (action.path) out += `<g opacity="0.85" pointer-events="none">${wireMarkup(action.wire, action.path, {ends: action.ends})}</g>`;
     if (!action.target && action.path) {
       const p = action.path[action.path.length - 1];
       out += `<circle cx="${p.x}" cy="${p.y}" r="${3 * s}" fill="#0a0a0a" pointer-events="none"/>`;
@@ -181,7 +190,8 @@ function render() {
 // Partial redraw while dragging: move one component, reroute only its wires.
 function redrawMoving(ids) {
   for (const id of ids) layers.components.querySelector(`[data-component="${id}"]`)?.setAttribute('transform', transformOf(doc, findComponent(id)));
-  const attached = new Set(doc.wires.filter(w => ids.has(w.from.component) || ids.has(w.to.component)).map(w => w.id));
+  const attached = new Set([...doc.wires.filter(w => ids.has(w.from.component) || ids.has(w.to.component)).map(w => w.id),
+    ...doc.mates.filter(m => mateSides(m).some(e => ids.has(e.component))).map(m => m.id)]);
   routes = routeWires(doc, {only: attached, cache: routes});
   collectPins(); drawWires(); drawOverlay();
 }
@@ -260,10 +270,10 @@ $('search').addEventListener('input', drawLibrary);
 // ---------- pointer interactions ----------
 // Pin: drag to another pin, or click a pin then click another (magnetic snap in both).
 // Part: drag to move (10 px grid). Wire: click to select, drag a segment to reshape, drag an end to reconnect.
-// Empty canvas: drag to pan. Wheel: pan, Ctrl/⌘ + wheel: zoom.
+// Empty canvas: left-drag to box-select (Shift adds), right- or middle-drag to pan. Wheel: pan, Ctrl/⌘ + wheel: zoom.
 let frame = 0, lastMove = null;
 stage.addEventListener('pointerdown', event => safely(() => {
-  if (event.button === 1 || (event.button === 0 && event.altKey)) return startPan(event);
+  if (event.button === 1 || event.button === 2 || (event.button === 0 && event.altKey)) return startPan(event);
   if (event.button !== 0) return;
   stage.focus({preventScroll: true});
   const p = toCanvas(event);
@@ -280,6 +290,15 @@ stage.addEventListener('pointerdown', event => safely(() => {
 
   const pin = nearestPin(p, pinRadius());
   if (pin) return startWire(event, pin);
+
+  const lead = event.target.closest('[data-lead]');
+  if (lead) { // drag a free lead's plug; its lead follows
+    const [id, connector] = lead.dataset.lead.split('/'), offset = findComponent(id).leads?.[connector] ?? {dx: 0, dy: 0};
+    select(id); render();
+    action = {type: 'lead', id, connector, start: p, base: doc, offset, before: serialize(doc), moved: false};
+    stage.setPointerCapture(event.pointerId);
+    return;
+  }
 
   // Shift+click adds or removes an item; a plain click selects it alone unless it is already part of the selection.
   const toggle = id => { selection.has(id) ? selection.delete(id) : selection.add(id); render(); };
@@ -301,14 +320,12 @@ stage.addEventListener('pointerdown', event => safely(() => {
     stage.setPointerCapture(event.pointerId);
     return;
   }
-  if (event.shiftKey) { // box selection
-    action = {type: 'box', start: p, end: p, keep: new Set(selection)};
-    stage.setPointerCapture(event.pointerId);
-    return;
-  }
-  if (selection.size) { select(); render(); }
-  startPan(event);
+  // Box selection; without Shift it replaces the current selection (a plain click on empty space clears it).
+  action = {type: 'box', start: p, end: p, keep: event.shiftKey ? new Set(selection) : new Set()};
+  if (!event.shiftKey && selection.size) { select(); render(); }
+  stage.setPointerCapture(event.pointerId);
 }));
+stage.addEventListener('contextmenu', event => event.preventDefault()); // right button pans the view
 
 function startPan(event) {
   action = {type: 'pan', sx: event.clientX, sy: event.clientY, vx: view.x, vy: view.y};
@@ -323,6 +340,11 @@ function startWire(event, pin) {
   render(); updateWire(toCanvas(event));
 }
 const compatible = (from, ignoreWire = null) => p => !cableProblem(doc, from, {component: p.component, pin: p.pin}, ignoreWire);
+// Preview of a plug seated in a socket while dragging from one to the other.
+function matePreview(mate) {
+  const m = {id: '_preview', ...mate}, {from, to} = mateEnds({...doc, mates: [...doc.mates, m]}, m);
+  return {mate: m, path: routePath(doc, from, to)};
+}
 // A pin under the pointer that the current cable cannot plug into, with the reason.
 function refusal(p, from, ignoreWire = null) {
   const pin = nearestPin(p, pinRadius(), from);
@@ -331,6 +353,8 @@ function refusal(p, from, ignoreWire = null) {
 function updateWire(p) {
   const target = nearestPin(p, magnetRadius(), action.from, compatible(action.from));
   action.target = target;
+  const mate = target && mateFor(doc, action.from, {component: target.component, pin: target.pin});
+  action.mate = mate ? matePreview(mate) : null;
   if (target) {
     const to = {component: target.component, pin: target.pin}, info = portInfo(doc, to, pinInfo(doc, to).pin.cable ? usedSlots(doc, to) : 0);
     action.wire = wireDefaults(doc, action.from, to);
@@ -347,12 +371,18 @@ function updateWire(p) {
 function finishWire(target) {
   const from = action.from, to = {component: target.component, pin: target.pin};
   endAction();
+  const mate = mateFor(doc, from, to);
+  if (mate) { // a plug dropped on its socket seats the whole connector
+    const id = nextId(doc, 'J');
+    commit({type: 'mate', id, ...mate}, mate.ends ? `${mate.ends[0].component}와 ${mate.ends[1].component}를 케이블로 연결했습니다.` : `${mate.plug.component} 플러그를 ${mate.socket.component} 소켓에 꽂았습니다.`);
+    select(id); render(); return;
+  }
   const id = nextId(doc, 'W');
   commit({type: 'connect', id, from, to}, `${from.component}.${from.pin} → ${to.component}.${to.pin} 연결했습니다.`);
   select(id); render();
 }
 function startSegmentDrag(event, index, p) {
-  const w = findWire(single()), path = routes.get(w.id);
+  const w = findWire(single()) ?? findMate(single()), path = routes.get(w.id);
   action = {type: 'segment', id: w.id, index, start: p, path: path.map(q => ({...q})), before: serialize(doc), moved: false};
   stage.setPointerCapture(event.pointerId);
 }
@@ -409,11 +439,17 @@ function move(event) {
       Object.assign(action, {dx, dy, moved: true});
       doc = apply(action.base, {type: 'translate', ids: [...action.ids], dx, dy}); redrawMoving(action.ids); break;
     }
+    case 'lead': {
+      const dx = action.offset.dx + snap(p.x - action.start.x), dy = action.offset.dy + snap(p.y - action.start.y), cur = findComponent(action.id).leads?.[action.connector] ?? {dx: 0, dy: 0};
+      if (dx === cur.dx && dy === cur.dy) break;
+      doc = apply(action.base, {type: 'lead', id: action.id, connector: action.connector, dx, dy}); action.moved = true;
+      routes = routeWires(doc); collectPins(); drawWires(); drawOverlay(); break;
+    }
     case 'box': {
       action.end = p;
       const r = boxRect(action), inside = b => b.x >= r.x && b.y >= r.y && b.x + b.width <= r.x + r.width && b.y + b.height <= r.y + r.height;
       selection = new Set([...action.keep, ...doc.components.filter(c => inside(bounds(doc, c))).map(c => c.id),
-        ...doc.wires.filter(w => routes.get(w.id).every(q => inside({x: q.x, y: q.y, width: 0, height: 0}))).map(w => w.id)]);
+        ...[...doc.wires, ...doc.mates].filter(w => routes.get(w.id).every(q => inside({x: q.x, y: q.y, width: 0, height: 0}))).map(w => w.id)]);
       drawOverlay(); break;
     }
     case 'wire': updateWire(p); showTip(action.target, event); break;
@@ -451,8 +487,8 @@ stage.addEventListener('pointerup', event => safely(() => {
     return;
   }
   endAction();
-  if (a.type === 'box') { render(); status(`${selection.size}개를 선택했습니다.`); return; }
-  if ((a.type === 'move' || a.type === 'segment') && a.moved && serialize(doc) !== a.before) { remember(a.before); persist(); status(a.type === 'move' ? '소자를 옮겼습니다.' : '전선 경로를 바꿨습니다.'); }
+  if (a.type === 'box') { render(); if (selection.size) status(`${selection.size}개를 선택했습니다.`); return; }
+  if ((a.type === 'move' || a.type === 'segment' || a.type === 'lead') && a.moved && serialize(doc) !== a.before) { remember(a.before); persist(); status({move: '소자를 옮겼습니다.', lead: '리드선을 옮겼습니다.'}[a.type] ?? '전선 경로를 바꿨습니다.'); }
   render();
 }));
 stage.addEventListener('pointercancel', () => { if (action?.before) doc = parseCircuit(action.before); endAction(); render(); });
@@ -474,7 +510,7 @@ document.addEventListener('keydown', event => {
   if (event.target.matches('input, textarea, select')) return;
   const key = event.key.toLowerCase(), mod = event.ctrlKey || event.metaKey;
   if (key === 'escape') { if (action) cancelAction('취소했습니다.'); else if (selection.size) { select(); render(); } return; }
-  if (mod && key === 'a') { event.preventDefault(); select(...doc.components.map(c => c.id), ...doc.wires.map(w => w.id)); render(); status(`전체 ${selection.size}개를 선택했습니다.`); return; }
+  if (mod && key === 'a') { event.preventDefault(); select(...doc.components.map(c => c.id), ...doc.wires.map(w => w.id), ...doc.mates.map(m => m.id)); render(); status(`전체 ${selection.size}개를 선택했습니다.`); return; }
   if (mod && key === 'z') { event.preventDefault(); history(event.shiftKey ? 'redo' : 'undo'); return; }
   if (mod && key === 'y') { event.preventDefault(); history('redo'); return; }
   if (mod && key === 'd') { event.preventDefault(); safely(duplicate); return; }
@@ -504,7 +540,9 @@ function removeSelection() {
   const components = selectedComponents().map(c => c.id), gone = new Set(components);
   // Wires attached to removed components disappear with them.
   const wires = doc.wires.filter(w => selection.has(w.id) && !gone.has(w.from.component) && !gone.has(w.to.component)).map(w => w.id);
-  commitAll([...components.map(id => ({type: 'remove', id})), ...wires.map(id => ({type: 'disconnect', id}))],
+  const mates = doc.mates.filter(m => selection.has(m.id) && mateSides(m).every(e => !gone.has(e.component))).map(m => m.id);
+  if (!components.length && !wires.length && mates.length) { commitAll(mates.map(id => ({type: 'unmate', id})), '커넥터를 뽑았습니다.'); select(); render(); return; }
+  commitAll([...components.map(id => ({type: 'remove', id})), ...wires.map(id => ({type: 'disconnect', id})), ...mates.map(id => ({type: 'unmate', id}))],
     `${components.length ? `소자 ${components.length}개` : ''}${components.length && wires.length ? ', ' : ''}${wires.length ? `전선 ${wires.length}개` : ''}를 삭제했습니다.`);
   select(); render();
 }
@@ -527,11 +565,18 @@ function duplicate() {
 
 // ---------- inspector ----------
 function inspect() {
-  const c = findComponent(single()), w = findWire(single());
-  if (selection.size > 1) {
+  const c = findComponent(single()), w = findWire(single()), m = findMate(single());
+  if (m) {
+    const name = end => `${e(end.component)} <span>${e(partOf(doc, findComponent(end.component).part).name)}</span>`;
+    const [a, b] = mateSides(m), kinds = [a, b].map(end => connectorOf(doc, end).kind);
+    $('inspector').innerHTML = `<h2>${e(m.id)}</h2><p class="kind">${m.ends ? `케이블 · ${e(kinds.join(' ↔ '))}` : `커넥터 연결 · ${e(kinds[0])}`}</p>
+      <p class="endpoint">${m.ends ? `소켓 ${name(a)}<br>↕<br>소켓 ${name(b)}` : `플러그 ${name(a)}<br>↓<br>소켓 ${name(b)}`}</p>
+      <section><p class="hint">${m.ends ? '양쪽 소켓에 플러그가 꽂힌 케이블입니다. 전선은 극성(+, −)에 맞춰 이어집니다.' : '플러그를 소켓에 바로 꽂은 연결입니다.'} ${m.points?.length ? `직접 지정한 경유점 ${m.points.length}개` : '자동 배선'} · 리드선 구간 손잡이를 끌어 경로를 바꿉니다.</p>
+      <div class="row"><button data-act="auto-route" ${m.points?.length ? '' : 'disabled'}>자동 배선으로</button><button data-act="delete" class="danger" title="Delete">플러그 뽑기</button></div></section>`;
+  } else if (selection.size > 1) {
     const parts = selectedComponents().length, wires = selection.size - parts;
-    $('inspector').innerHTML = `<h2>${selection.size}개 선택</h2><p class="kind">소자 ${parts}개 · 전선 ${wires}개</p>
-      <section><p class="hint">끌면 함께 이동합니다. Shift+클릭으로 추가·해제, Shift+빈 곳 끌기로 영역 선택.</p>
+    $('inspector').innerHTML = `<h2>${selection.size}개 선택</h2><p class="kind">소자 ${parts}개 · 연결 ${wires}개</p>
+      <section><p class="hint">끌면 함께 이동합니다. Shift+클릭으로 추가·해제, 빈 곳 끌기로 영역 선택(Shift: 추가).</p>
       ${parts ? '<div class="row"><button data-act="rotate-left" title="Shift+R">⟲ 90°</button><button data-act="rotate-right" title="R">⟳ 90°</button></div><div class="row"><button data-act="duplicate" title="Ctrl+D">복제</button><button data-act="delete" class="danger">삭제</button></div>' : '<div class="row"><button data-act="delete" class="danger">삭제</button></div>'}</section>`;
   } else if (c) {
     const part = partOf(doc, c.part), used = usedPins(), values = propsOf(doc, c);
@@ -541,6 +586,8 @@ function inspect() {
       : `<label>${e(p.label)}<input data-param="${p.id}" value="${e(formatValue(p, values[p.id]))}" placeholder="예: 220, 4.7k, 1M" spellcheck="false"></label>`).join('');
     $('inspector').innerHTML = `<h2>${e(c.id)}</h2><p class="kind">${e(part.name)}</p>
       ${params ? `<section>${params}<p class="hint">값에 맞춰 그림(색, 색띠 등)이 바뀝니다.</p></section>` : ''}
+      ${freeLeads(doc, c).length ? `<section><h3>리드선</h3><p class="hint">커넥터를 끌어 리드선 위치를 바꿉니다. 커넥터는 몸체 반대쪽을 향합니다.</p>
+      <div class="row"><button data-act="lead-reset" ${c.leads ? '' : 'disabled'}>원래 위치로</button></div></section>` : ''}
       <section><label>이름 <input id="f-label" value="${e(c.label)}" maxlength="200" placeholder="${e(part.name)}"></label>
       <p class="hint">이름은 구분용이며 그림에는 표시하지 않습니다.</p>
       <div class="fields"><label>X<input id="f-x" type="number" step="10" value="${c.x}"></label><label>Y<input id="f-y" type="number" step="10" value="${c.y}"></label></div>
@@ -560,9 +607,9 @@ function inspect() {
       <section><p class="hint">작업 영역은 제한 없이 넓어집니다. SVG·PNG 내보내기는 그림 내용에 맞춰 자릅니다.</p></section>
       <section><h3>조작</h3><p class="keys">
       핀 → 핀 <b>끌기</b> 또는 <b>차례로 클릭</b>: 연결<br>
-      소자 끌기: 이동 · 빈 곳 끌기: 화면 이동<br>
+      소자 끌기: 이동 · 빈 곳 끌기: 영역 선택 · 우클릭 끌기: 화면 이동<br>
       전선 구간 끌기: 경로 수정<br>
-      <kbd>Shift</kbd>+클릭 여러 개 선택 · <kbd>Shift</kbd>+빈 곳 끌기 영역 선택 · <kbd>Ctrl</kbd>+<kbd>A</kbd> 전체 선택<br>
+      <kbd>Shift</kbd>+클릭·끌기 선택 추가 · <kbd>Ctrl</kbd>+<kbd>A</kbd> 전체 선택<br>
       <kbd>R</kbd> 회전 <kbd>Del</kbd> 삭제 <kbd>Ctrl</kbd>+<kbd>D</kbd> 복제<br>
       <kbd>방향키</kbd> 이동 <kbd>F</kbd> 화면 맞춤 <kbd>Esc</kbd> 취소<br>
       <kbd>Ctrl</kbd>+휠 확대·축소 · 휠 화면 이동</p></section>
@@ -585,6 +632,7 @@ $('inspector').addEventListener('click', event => safely(() => {
   else if (t.dataset.act === 'rotate-right') rotate(90);
   else if (t.dataset.act === 'duplicate') duplicate();
   else if (t.dataset.act === 'delete') removeSelection();
+  else if (t.dataset.act === 'lead-reset') commitAll(freeLeads(doc, findComponent(single())).map(k => ({type: 'lead', id: single(), connector: k.id, dx: 0, dy: 0})), '리드선을 원래 위치로 되돌렸습니다.');
   else if (t.dataset.act === 'auto-route') commit({type: 'wire', id: single(), points: []}, '자동 배선으로 되돌렸습니다.');
 }));
 $('title').addEventListener('change', event => safely(() => commit({type: 'document', title: event.target.value || '제목 없는 회로'}, '제목을 바꿨습니다.')));

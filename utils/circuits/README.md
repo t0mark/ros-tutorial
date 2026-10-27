@@ -16,6 +16,7 @@ src/parts/           내장 소자 SVG와 고정 핀 정의
   modules.js         L298N, TB6612FNG, ULN2003, MPU-6050, 카메라 모듈, 2D 라이다 FHL-LD19P, 라이다용 USB-UART 어댑터
   extras.js          초음파 HC-SR04, 블루투스 HC-05, 피에조 부저, AA 건전지, 2구·3구 배터리 홀더
   displays.js        7인치 HDMI 소형 모니터, HDMI 모니터(축소 표시)
+  kits.js            [커스텀 (청소기)] 핸디 청소기 키트 ZC011(BLDC 모터, 구동 보드, 2S 배터리, 스위치), CyberBrick 전원 스위치 보드 XA007 / [전원] 강압 컨버터 SZH-EK366
 src/example.js       예제 회로 (GUI 예제 메뉴·CLI example·테스트 공용)
 cli.mjs              파일 입출력만 담당하는 CLI
 web/                 같은 코어를 import하는 GUI
@@ -42,15 +43,27 @@ http://localhost:8000/tools/circuits/ 를 엽니다. 빌드 결과를 저장소�
 | 소자 끌기 / 방향키(Shift: 50 px) | 10 px 격자 단위 이동 |
 | 전선 클릭 후 구간 손잡이 끌기 | 경로 수정 (수동 경유점으로 저장) |
 | 선택한 전선의 끝 원 끌기 | 다른 핀으로 끝점 이동 |
-| `Shift`+클릭 / `Shift`+빈 곳 끌기 / `Ctrl+A` | 여러 개 선택 추가·해제 / 영역 선택 / 전체 선택. 선택한 소자는 함께 이동·회전·복제·삭제 |
+| 빈 곳 좌클릭 끌기 / `Shift`+클릭·끌기 / `Ctrl+A` | 영역 선택 / 선택 추가·해제 / 전체 선택. 선택한 소자는 함께 이동·회전·복제·삭제 |
 | `R` / `Shift+R` | 90° 회전 (중심 유지) |
 | `Delete`, `Ctrl+D`, `Ctrl+Z`, `Ctrl+Shift+Z`, `Esc` | 삭제, 복제, 실행 취소, 다시 실행, 취소 |
-| 빈 곳 끌기 / 휠 / `Ctrl`+휠 / `F` | 화면 이동 / 스크롤 / 확대·축소 / 그림 전체 보기 (작업 영역 무제한) |
+| 우클릭(또는 휠 버튼) 끌기 / 휠 / `Ctrl`+휠 / `F` | 화면 이동 / 스크롤 / 확대·축소 / 그림 전체 보기 (작업 영역 무제한) |
 
 - 전선 색은 핀에 따라 자동 지정합니다(GND 검정, 전원 빨강, 신호는 차례로 다른 색). 색은 인스펙터에서 바꿀 수 있습니다.
 - 전선 종류는 단자가 정합니다. USB 포트(`cable: "usb"`)는 USB 포트끼리 케이블로, HDMI(`cable: "hdmi"`)는 HDMI끼리, 카메라 CSI(`cable: "ribbon"`)는 실제 폭의 FPC 리본(16 mm, Pi 쪽 끝은 22핀 단자로 좁아짐)으로만 연결하며 포트 하나에 케이블 하나만 꽂힙니다. 양 끝에 플러그(리본은 보강판)를 그리고 플러그 길이만큼 곧게 뺀 뒤 꺾습니다. 케이블이 소자 그림에 이미 붙어 있는 단자는 핀에 `"plug": false`를 지정합니다. 2단 USB-A처럼 한 핀에 여러 케이블이 꽂히는 포트는 `"ports": 2`로 지정하며, 두 번째 플러그는 한 칸 옆에 겹쳐 그립니다. Raspberry Pi 5의 USB 핀은 `USB2`(USB 2.0 2단), `USB3`(USB 3.0 2단)입니다.
 - **SVG 내보내기**·**PNG**(3배 해상도)는 격자·선택 표시 없이 그림 내용에 맞춰 자릅니다.
 - 현재 문서는 브라우저에 자동 저장합니다. 보관·이동은 **JSON 저장**을 쓰세요.
+
+## 커넥터 직결
+
+리드선 끝에 플러그가 달린 소자(28BYJ-48, 청소기 모터·배터리·스위치)는 플러그 핀을 맞는 소켓(ULN2003 모터 소켓, 청소기 구동 보드)으로 끌어 놓으면 커넥터째 꽂힙니다. 리드선은 소자 몸체에서 소켓까지 색 전선 묶음으로, 플러그는 소켓에 꽂힌 모양으로 그립니다. 연결을 선택하면 전선처럼 리드선 구간 손잡이를 끌어 경로를 바꿀 수 있고(`wire` 작업의 `points`), `Delete`하면 뽑힙니다. 꽂힌 커넥터의 핀에는 점퍼선을 연결할 수 없습니다.
+
+소자 정의의 `connectors`에 `{id, kind, role: "plug" | "socket", pins}`를 적고, 플러그는 리드선이 몸체를 떠나는 지점 `exit: {x, y, dir}`과 선 색 `colors`, 그리고 꽂혔을 때 리드선·플러그를 빼고 그리는 `render(props, {mated})`가 필요합니다. `kind`(예: `xh-5`, `mr30-3`, `xt30-2`, `ph-3`)가 같은 플러그와 소켓만 꽂힙니다.
+
+보드에 붙은 소켓끼리(예: 청소기 구동 보드 12V 출력 ↔ CyberBrick 스위치 IN)는 한쪽 소켓 핀을 다른 소켓으로 끌면 양 끝에 플러그가 달린 케이블로 연결됩니다. 각 끝의 플러그 하우징은 그 소켓 종류(초록 2핀, 흰색 XH 등)로 그리고, 전선은 소켓 정의의 `signals`(`V+`, `GND`)로 극성을 맞춰 빨강·검정으로 잇습니다. CLI: `{"type": "mate", "ends": [{"component": "DRV", "connector": "OUT12V"}, {"component": "SWB", "connector": "IN"}]}`.
+
+### 리드선 이동 (서보 모터)
+
+서보 모터처럼 끝에 꽂을 곳이 따로 없는 리드선은 커넥터를 끌어 원하는 위치로 옮깁니다. 커넥터는 몸체 반대쪽을 향하도록 자동으로 돌고, 리드선은 몸체에서 커넥터 뒤쪽으로 이어지며, 커넥터 핀에 연결한 점퍼선도 함께 따라옵니다. 인스펙터의 「원래 위치로」로 되돌립니다. CLI: `{"type": "lead", "id": "S1", "connector": "J1", "dx": 120, "dy": -80}`(`dx`, `dy`가 0이면 원위치). 소자 정의에서는 `role: "lead"` 커넥터에 `exit`, `colors`를 적습니다.
 
 ## 자동 배선
 
@@ -84,6 +97,8 @@ node utils/circuits/cli.mjs export /tmp/c.json /tmp/c.svg      # 내용에 맞�
 | `connect` | `from`, `to`, 선택: `id`, `color`, `points` | 핀 연결. 종류는 단자에 따라 자동, 색 생략 시 자동 |
 | `wire` | `id`, 선택: `color`, `style`, `points`, `from`, `to` | 전선 수정. `points: []`는 자동 배선 |
 | `disconnect` | `id` | 전선 삭제 |
+| `mate` | `plug`, `socket` (`{"component", "connector"}`), 선택: `id` | 리드선 끝 플러그를 소켓에 직접 꽂음 |
+| `unmate` | `id` | 플러그 뽑기 |
 | `addPart` / `removePart` | `part` / `id` | 사용자 소자 등록 / 미사용 정의 삭제 |
 | `document` | `title` | 제목 |
 
@@ -97,6 +112,7 @@ node utils/circuits/cli.mjs export /tmp/c.json /tmp/c.svg      # 내용에 맞�
   "title": "회로 제목",
   "parts": [],
   "components": [{"id": "UNO", "part": "arduino-uno", "x": 80, "y": 160, "rotation": 0, "label": "Arduino Uno"}],
+  "mates": [],
   "wires": [{"id": "W1", "from": {"component": "UNO", "pin": "D13"}, "to": {"component": "R1", "pin": "1"}, "color": "#1f6fd1", "style": "wire", "points": []}]
 }
 ```

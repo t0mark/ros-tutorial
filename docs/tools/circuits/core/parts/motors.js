@@ -19,6 +19,13 @@ const solderTab = (x0, x1, y, hx, {w = 6, metal = '#c9a24a', light = '#ecd38a', 
   + `<rect x="${x0}" y="${y - w / 2}" width="${x1 - x0}" height="${w * 0.3}" rx="0.8" fill="${light}"/>`
   + `<circle cx="${hx}" cy="${y}" r="${hr}" fill="#5a4410"/>`;
 
+// Plug-on-a-lead parts: unmated art = lead + body + plug; when connector J1 is mated, the editor draws
+// the lead and plug itself, so the part shows only the body and a short stub at the cable exit.
+export const plugArt = (W, H, {lead, body, plug, stub, pre = false}) => {
+  const render = (props, state) => svg(W, H, state?.mated?.has('J1') ? stub + body : pre ? lead + plug + body : lead + body + plug);
+  return {svg: render({}, {mated: new Set()}), render};
+};
+
 // D-shaft stub with a flat face (vertical stub from y0 to y1).
 const dShaftV = (x, y0, y1, w, {fill = '#f4f1e8', flat = '#d8d3c4'} = {}) => {
   const top = Math.min(y0, y1), h = Math.abs(y1 - y0);
@@ -109,12 +116,9 @@ function n20Motor() {
 
 // ---------------------------------------------------------------- SG90 servo (22.2 x 11.8 mm, ears 32.2 mm)
 function servoSG90() {
-  const W = 150, H = 140, cy = 43, sx = 47;
+  // Body only: the 3-wire lead and its plug are a free lead drawn by the editor, which can be dragged anywhere.
+  const W = 140, H = 90, cy = 43, sx = 47;
   let b = '';
-  // 3-wire cable from the end face, bending down to the connector: brown inside → leftmost.
-  const wires = [['#8b5a2b', 57, 120], ['#d8322b', 53, 130], ['#f08a1c', 49, 140]];
-  for (const [color, y, x] of wires)
-    b += cableWire(`M108 ${y} H112 C${x} ${y} ${x} ${y} ${x} ${y + 30} V122`, color, 3.4);
   // Mounting ears (one molded flange, 127 px).
   b += `<rect x="4" y="27" width="127" height="32" rx="3" fill="#2f72c9" stroke="#1d4f93" stroke-width="0.7"/>`
     + `<rect x="4" y="27" width="127" height="4" rx="2" fill="${HL}"/>`;
@@ -140,15 +144,13 @@ function servoSG90() {
   b += text(94, 34, 'SG90', {size: 7.5, fill: '#ffffff', weight: 'bold'})
     + text(94, 45, '9g SERVO', {size: 4, fill: '#e6f0ff'})
     + text(94, 54, '4.8-6V', {size: 3.6, fill: '#cfe0f7'});
-  // Black 3-pin female connector housing 30 x 14 px, contacts on the end face.
-  b += `<rect x="115" y="120" width="30" height="14" rx="1.5" fill="#1f1f22" stroke="#000000" stroke-width="0.5"/>`
-    + `<rect x="115" y="120" width="30" height="3" rx="1.2" fill="${HL2}"/>`;
-  for (let i = 0; i < 3; i++) {
-    const x = 120 + i * PITCH;
-    b += `<rect x="${x - 2.6}" y="127.4" width="5.2" height="5.2" fill="#050505"/><rect x="${x - 1.2}" y="128.8" width="2.4" height="2.4" fill="#c7a548"/>`;
-  }
+  // Grommet where the lead leaves the case end.
+  b += `<rect x="106" y="44" width="6" height="12" rx="1" fill="#1d4f93"/>`;
+  const art = svg(W, H, b);
   return {
-    id: 'servo-sg90', name: '서보 모터 (SG90)', category: '모터', width: W, height: H, svg: svg(W, H, b),
+    id: 'servo-sg90', name: '서보 모터 (SG90)', category: '모터', width: W, height: H, svg: art, render: () => art,
+    // Default plug position: contacts at (120–140, 130), facing down; brown/red/orange conductors.
+    connectors: [{id: 'J1', kind: 'servo-3', role: 'lead', pins: ['GND', 'VCC', 'SIG'], exit: {x: 110, y: 50, dir: 'right'}, colors: ['#8b5a2b', '#d8322b', '#f08a1c']}],
     pins: [
       pin('GND', 120, 130, 'down', 'GND (갈색)'),
       pin('VCC', 130, 130, 'down', 'VCC 5V (빨강)'),
@@ -160,13 +162,15 @@ function servoSG90() {
 // ---------------------------------------------------------------- 28BYJ-48 stepper (Ø28 mm, ears 42 mm, holes 35 mm)
 function stepper28BYJ48() {
   const W = 180, H = 250, cx = 90, cy = 82;
-  let b = '';
-  // 5-wire cable from the blue cap fanning to the connector.
+  // Flying lead (drawn under the body) and its stub when the plug is mated elsewhere.
   const colors = ['#2f6fd6', '#f29bc0', '#f2d31b', '#f08a1c', '#d8322b'];
+  let lead = '', stub = '';
   colors.forEach((color, i) => {
     const sx = 80 + i * 5, ex = 70 + i * PITCH;
-    b += cableWire(`M${sx} 146 V170 C${sx} 190 ${ex} 186 ${ex} 204 V228`, color, 4);
+    lead += cableWire(`M${sx} 146 V170 C${sx} 190 ${ex} 186 ${ex} 204 V228`, color, 4);
+    stub += cableWire(`M${sx} 146 V150`, color, 4);
   });
+  let b = '';
   // Mounting ear bar: 165 px end to end, hole centers 138 px apart.
   b += `<path d="M21 ${cy - 14} H159 A14 14 0 0 1 159 ${cy + 14} H21 A14 14 0 0 1 21 ${cy - 14} Z" fill="#b9bec4" stroke="#7b8189" stroke-width="0.8"/>`
     + `<rect x="12" y="${cy - 12}" width="156" height="4" rx="2" fill="${HL}"/>`;
@@ -191,17 +195,19 @@ function stepper28BYJ48() {
   b += text(cx, cy + 14, '28BYJ-48', {size: 9, fill: '#4f555c', weight: 'bold'})
     + text(cx, cy + 27, '5V DC', {size: 7, fill: '#5f656c'});
   // White 5-pin JST-XH housing, 50 x 22 px.
-  b += `<rect x="65" y="224" width="50" height="22" rx="1.5" fill="#f1eee6" stroke="#b3ad9e" stroke-width="0.8"/>`
+  let plug = `<rect x="65" y="224" width="50" height="22" rx="1.5" fill="#f1eee6" stroke="#b3ad9e" stroke-width="0.8"/>`
     + `<rect x="65" y="224" width="50" height="4" rx="1.5" fill="${HL}"/>`
     + `<rect x="65" y="232" width="50" height="2" fill="${SH}"/>`
     + `<rect x="86" y="245" width="8" height="3.5" fill="#e3dfd3" stroke="#b3ad9e" stroke-width="0.5"/>`; // polarizing key
   for (let i = 0; i < 5; i++) {
     const x = 70 + i * PITCH;
-    b += `<rect x="${x - 3}" y="237" width="6" height="6" fill="#3a372f"/><rect x="${x - 1.3}" y="238.7" width="2.6" height="2.6" fill="#c7a548"/>`;
+    plug += `<rect x="${x - 3}" y="237" width="6" height="6" fill="#3a372f"/><rect x="${x - 1.3}" y="238.7" width="2.6" height="2.6" fill="#c7a548"/>`;
   }
   const names = [['BLUE', '코일 A (파랑)'], ['PINK', '코일 B (분홍)'], ['YELLOW', '코일 C (노랑)'], ['ORANGE', '코일 D (주황)'], ['RED', '공통 +5V (빨강)']];
   return {
-    id: 'stepper-28byj48', name: '스텝 모터 (28BYJ-48)', category: '모터', width: W, height: H, svg: svg(W, H, b),
+    id: 'stepper-28byj48', name: '스텝 모터 (28BYJ-48)', category: '모터', width: W, height: H,
+    ...plugArt(W, H, {lead, body: b, plug, stub}),
+    connectors: [{id: 'J1', kind: 'xh-5', role: 'plug', pins: names.map(n => n[0]), exit: {x: 90, y: 150, dir: 'down'}, colors}],
     pins: names.map(([id, label], i) => pin(id, 70 + i * PITCH, 240, 'down', label)),
   };
 }

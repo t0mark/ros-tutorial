@@ -181,7 +181,9 @@ const uln2003 = (() => {
     pin('IN1', 10, 40, 'left', 'IN1'), pin('IN2', 10, 50, 'left', 'IN2'), pin('IN3', 10, 60, 'left', 'IN3'), pin('IN4', 10, 70, 'left', 'IN4'),
     pin('GND', 70, 120, 'down', 'GND (−)'), pin('VCC', 80, 120, 'down', 'VCC (+5–12V)'),
   ];
-  return {id: 'uln2003', name: '모터 드라이버 (ULN2003)', category: CAT, width: W, height: H, svg: svg(W, H, b), pins};
+  // The 28BYJ-48's XH-5 plug mates with the motor socket.
+  const connectors = [{id: 'MOTOR', kind: 'xh-5', role: 'socket', pins: ['OUT1', 'OUT2', 'OUT3', 'OUT4', 'COM']}];
+  return {id: 'uln2003', name: '모터 드라이버 (ULN2003)', category: CAT, width: W, height: H, svg: svg(W, H, b), pins, connectors};
 })();
 
 // ---------- 3. MPU-6050 (GY-521) ----------

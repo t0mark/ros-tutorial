@@ -53,14 +53,30 @@ export function validatePart(part) {
       : [p.default, p.min, p.max].every(Number.isFinite) && p.min <= p.default && p.default <= p.max), `소자 매개변수를 확인하세요: ${p.id}`);
   }
   const ids = new Set();
+  // Pins on a free lead's plug may sit outside the body: the plug is drawn wherever the lead is moved.
+  const leadPins = new Set((Array.isArray(part.connectors) ? part.connectors : []).filter(c => c?.role === 'lead').flatMap(c => c.pins ?? []));
   for (const pin of part.pins) {
     assert(pin && pinIdOK(pin.id) && !ids.has(pin.id), `핀 id가 잘못되었거나 중복됩니다: ${pin?.id}`); ids.add(pin.id);
-    assert(number(pin.x) && pin.x >= 0 && pin.x <= part.width && number(pin.y) && pin.y >= 0 && pin.y <= part.height, `핀은 소자 영역 안에 있어야 합니다: ${pin.id}`);
+    assert(number(pin.x) && number(pin.y) && (leadPins.has(pin.id) || (pin.x >= 0 && pin.x <= part.width && pin.y >= 0 && pin.y <= part.height)), `핀은 소자 영역 안에 있어야 합니다: ${pin.id}`);
     assert(pin.label === undefined || typeof pin.label === 'string', '핀 label은 문자열이어야 합니다.');
     assert(pin.dir === undefined || DIRS.includes(pin.dir), `핀 dir은 ${DIRS.join('/')} 중 하나입니다: ${pin.id}`);
     assert(pin.cable === undefined || ['usb', 'hdmi', 'ribbon'].includes(pin.cable), `핀 cable은 usb/hdmi/ribbon 중 하나입니다: ${pin.id}`);
     assert(pin.plug === undefined || typeof pin.plug === 'boolean', `핀 plug는 true/false입니다: ${pin.id}`);
     assert(pin.ports === undefined || (Number.isInteger(pin.ports) && pin.ports >= 1 && pin.ports <= 4), `핀 ports는 1–4 정수입니다: ${pin.id}`);
+  }
+  // Multi-pin connectors that mate as a unit: a plug on a flying lead (drawn by the part's render() when unmated)
+  // or a socket on a board. Pins are listed in mating order.
+  if (part.connectors !== undefined) {
+    assert(Array.isArray(part.connectors), '커넥터(connectors) 목록을 확인하세요.');
+    // A plug's lead is drawn by the editor once mated, so the part must be able to leave it out (render).
+    assert(!part.connectors.some(c => c?.role === 'plug' || c?.role === 'lead') || typeof part.render === 'function', '플러그 커넥터는 render를 가진 내장 소자만 지원합니다.');
+    const used = new Set();
+    for (const c of part.connectors) {
+      assert(c && idOK(c.id) && !used.has(c.id) && typeof c.kind === 'string' && ['plug', 'socket', 'lead'].includes(c.role), `커넥터 정의를 확인하세요: ${c?.id}`); used.add(c.id);
+      assert(Array.isArray(c.pins) && c.pins.length > 0 && c.pins.every(id => ids.has(id)), `커넥터 핀을 확인하세요: ${c.id}`);
+      assert(c.signals === undefined || (Array.isArray(c.signals) && c.signals.length === c.pins.length), `커넥터 signals를 확인하세요: ${c.id}`);
+      if (c.role !== 'socket') assert(c.exit && number(c.exit.x) && number(c.exit.y) && DIRS.includes(c.exit.dir) && Array.isArray(c.colors) && c.colors.length === c.pins.length, `플러그 exit/colors를 확인하세요: ${c.id}`);
+    }
   }
   return part;
 }
