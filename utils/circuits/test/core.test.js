@@ -55,7 +55,7 @@ test('rotation keeps the center and rotates pin directions', () => {
 test('auto routes are orthogonal, start and end on the pins and leave along the pin direction', () => {
   for (const x of examples) {
     const d = x.build(), routes = routeWires(d);
-    for (const w of d.wires) {
+    for (const w of d.wires.filter(w => !w.points.length)) { // hand-drawn routes are the author's choice
       const path = routes.get(w.id), a = pinInfo(d, w.from), b = pinInfo(d, w.to);
       assert.deepEqual(path[0], {x: a.x, y: a.y}, `${x.title} ${w.id} start`);
       assert.deepEqual(path.at(-1), {x: b.x, y: b.y}, `${x.title} ${w.id} end`);

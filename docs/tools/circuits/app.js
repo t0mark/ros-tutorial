@@ -414,7 +414,7 @@ function draggedPoints(path, i, p, start) {
   moved[i] = {...pts[i], [key]: value}; moved[i + 1] = {...pts[i + 1], [key]: value};
   if (i === 0) moved.unshift(pts[0]);
   if (i + 1 === pts.length - 1) moved.push(pts[pts.length - 1]);
-  return simplify(moved).slice(1, -1);
+  return simplify(moved).slice(1, -1).map(({x, y}) => ({x, y}));
 }
 
 stage.addEventListener('pointermove', event => {

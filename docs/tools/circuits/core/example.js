@@ -1,5 +1,6 @@
 // Example circuits built through the same operations the GUI and CLI use.
-import {createCircuit, apply} from './core.js';
+import {createCircuit, apply, parseCircuit} from './core.js';
+import vacuumRobot from './example-vacuum-robot.js';
 
 function build(title, commands) {
   let d = createCircuit(title);
@@ -99,5 +100,6 @@ export const examples = [
     wire('W9', 'UNO.GND_2', 'ULN.GND'),
     {type: 'mate', id: 'J1', plug: {component: 'STEP', connector: 'J1'}, socket: {component: 'ULN', connector: 'MOTOR'}},
   ])},
+  {title: '로봇 청소기 (ZC011 + Raspberry Pi 5)', build: () => parseCircuit(JSON.stringify(vacuumRobot))},
 ];
 export const exampleCircuit = () => examples[0].build();

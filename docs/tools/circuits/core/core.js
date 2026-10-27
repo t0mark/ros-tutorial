@@ -10,6 +10,8 @@ export const WIRE_COLORS = ['#1f6fd1', '#f2a900', '#2e9d4f', '#e5672b', '#8e44ad
 const ROTATIONS = [0, 90, 180, 270];
 const colorOK = value => typeof value === 'string' && /^#[\da-f]{6}$/i.test(value);
 const pointOK = p => p && number(p.x) && number(p.y);
+// Waypoints are stored as bare coordinates.
+const xy = points => points.map(({x, y}) => ({x, y}));
 export const escapeXML = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 
 const builtinById = new Map(builtinParts.map(p => [p.id, p]));
@@ -133,7 +135,12 @@ export function createCircuit(title = '새 회로') {
   return validate({version: VERSION, title, parts: [], components: [], wires: [], mates: []});
 }
 // The drawing area is unbounded; a `canvas` size from older drafts is dropped.
-export const parseCircuit = text => { const {canvas, ...doc} = JSON.parse(text); return validate({mates: [], ...doc}); };
+export function parseCircuit(text) {
+  const {canvas, ...doc} = JSON.parse(text);
+  // Older saves could carry whole pin records inside waypoints; keep coordinates only.
+  for (const w of [...(doc.wires ?? []), ...(doc.mates ?? [])]) if (Array.isArray(w?.points)) w.points = w.points.map(p => ({x: p?.x, y: p?.y}));
+  return validate({mates: [], ...doc});
+}
 export const serialize = doc => JSON.stringify(validate(doc), null, 2) + '\n';
 export function nextId(doc, prefix) {
   const used = new Set([...doc.components, ...doc.wires, ...doc.mates].map(item => item.id));
@@ -310,18 +317,19 @@ export function apply(doc, command) {
       const problem = cableProblem(d, a.from, a.to);
       assert(!problem, problem);
       const defaults = wireDefaults(d, a.from, a.to);
-      d.wires.push({id: a.id ?? nextId(d, 'W'), from: structuredClone(a.from), to: structuredClone(a.to), color: a.color ?? defaults.color, style: a.style ?? defaults.style, points: structuredClone(a.points ?? [])});
+      d.wires.push({id: a.id ?? nextId(d, 'W'), from: structuredClone(a.from), to: structuredClone(a.to), color: a.color ?? defaults.color, style: a.style ?? defaults.style, points: xy(a.points ?? [])});
       break;
     }
     case 'wire': {
       const m = d.mates.find(m => m.id === a.id);
       if (m) { // a mated connector's lead: only its route can change
         assert(a.points !== undefined && Object.keys(a).every(k => k === 'id' || k === 'points'), '커넥터 연결은 경로(points)만 바꿀 수 있습니다.');
-        if (a.points.length) m.points = structuredClone(a.points); else delete m.points;
+        if (a.points.length) m.points = xy(a.points); else delete m.points;
         break;
       }
       const w = wire();
-      for (const key of ['color', 'style', 'points', 'from', 'to']) if (a[key] !== undefined) w[key] = structuredClone(a[key]);
+      for (const key of ['color', 'style', 'from', 'to']) if (a[key] !== undefined) w[key] = structuredClone(a[key]);
+      if (a.points !== undefined) w.points = xy(a.points);
       break;
     }
     case 'disconnect': wire(); d.wires = d.wires.filter(w => w.id !== a.id); break;
@@ -530,7 +538,7 @@ export function routeWires(doc, {only = null, cache = null} = {}) {
     if (!path) {
       const a = portInfo(doc, w.from, sa), b = portInfo(doc, w.to, sb);
       path = w.points.length
-        ? orthogonal([a, ...(plugLead(a) ? [extend(a, plugLead(a))] : []), ...w.points, ...(plugLead(b) ? [extend(b, plugLead(b))] : []), b], a.dir, b.dir)
+        ? orthogonal([{x: a.x, y: a.y}, ...(plugLead(a) ? [extend(a, plugLead(a))] : []), ...w.points, ...(plugLead(b) ? [extend(b, plugLead(b))] : []), {x: b.x, y: b.y}].map(({x, y}) => ({x, y})), a.dir, b.dir)
         : routePath(doc, a, b, {field, occupied});
     }
     markOccupied(occupied, path);
