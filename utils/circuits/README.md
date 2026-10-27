@@ -16,7 +16,7 @@ src/parts/           내장 소자 SVG와 고정 핀 정의
   modules.js         L298N, TB6612FNG, ULN2003, MPU-6050, 카메라 모듈, 2D 라이다 FHL-LD19P, 라이다용 USB-UART 어댑터
   extras.js          초음파 HC-SR04, 블루투스 HC-05, 피에조 부저, AA 건전지, 2구·3구 배터리 홀더
   displays.js        7인치 HDMI 소형 모니터, HDMI 모니터(축소 표시)
-  kits.js            [커스텀 (청소기)] 핸디 청소기 키트 ZC011(BLDC 모터, 구동 보드, 2S 배터리, 스위치), CyberBrick 전원 스위치 보드 XA007 / [전원] 강압 컨버터 SZH-EK366
+  kits.js            [커스텀 (청소기)] 핸디 청소기 키트 ZC011(BLDC 모터, 구동 보드, 2S 배터리, 스위치), CyberBrick 전원 스위치 보드 XA007, WAGO 221-415 레버 커넥터 / [전원] 강압 컨버터 SZH-EK366
 src/example.js       예제 회로 (GUI 예제 메뉴·CLI example·테스트 공용)
 cli.mjs              파일 입출력만 담당하는 CLI
 web/                 같은 코어를 import하는 GUI
@@ -59,7 +59,7 @@ http://localhost:8000/tools/circuits/ 를 엽니다. 빌드 결과를 저장소�
 
 소자 정의의 `connectors`에 `{id, kind, role: "plug" | "socket", pins}`를 적고, 플러그는 리드선이 몸체를 떠나는 지점 `exit: {x, y, dir}`과 선 색 `colors`, 그리고 꽂혔을 때 리드선·플러그를 빼고 그리는 `render(props, {mated})`가 필요합니다. `kind`(예: `xh-5`, `mr30-3`, `xt30-2`, `ph-3`)가 같은 플러그와 소켓만 꽂힙니다.
 
-보드에 붙은 소켓끼리(예: 청소기 구동 보드 12V 출력 ↔ CyberBrick 스위치 IN)는 한쪽 소켓 핀을 다른 소켓으로 끌면 양 끝에 플러그가 달린 케이블로 연결됩니다. 각 끝의 플러그 하우징은 그 소켓 종류(초록 2핀, 흰색 XH 등)로 그리고, 전선은 소켓 정의의 `signals`(`V+`, `GND`)로 극성을 맞춰 빨강·검정으로 잇습니다. CLI: `{"type": "mate", "ends": [{"component": "DRV", "connector": "OUT12V"}, {"component": "SWB", "connector": "IN"}]}`.
+보드에 붙은 소켓끼리(예: 청소기 구동 보드 12V 출력 ↔ CyberBrick 스위치 IN, LD19P 라이다 ↔ USB-UART 어댑터의 ZH 4핀)는 한쪽 소켓 핀을 다른 소켓으로 끌면 양 끝에 플러그가 달린 케이블로 연결됩니다. 각 끝의 플러그 하우징은 그 소켓 종류(초록 2핀, 흰색 XH 등)로 그리고, 전선은 소켓 정의의 `signals`(`V+`, `GND`)로 극성을 맞춰 빨강·검정으로 잇습니다. CLI: `{"type": "mate", "ends": [{"component": "DRV", "connector": "OUT12V"}, {"component": "SWB", "connector": "IN"}]}`.
 
 ### 리드선 이동 (서보 모터)
 

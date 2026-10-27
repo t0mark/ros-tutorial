@@ -364,7 +364,9 @@ const lidarLD19P = (() => {
 
   const labels = {TX: 'TX · UART 데이터 출력 (230400 bps)', PWM: 'PWM · 모터 속도 제어 (보통 GND/미연결)', GND: 'GND', P5V: 'P5V · 5V 전원'};
   const pins = names.map((n, i) => pin(n, 100 + i * 10, 210, 'down', labels[n]));
-  return {id: 'lidar-ld19p', name: '2D 라이다 (FHL-LD19P)', category: CAT, width: W, height: H, svg: svg(W, H, b), pins};
+  // ZH1.5 socket; a cable to the USB-UART adapter's socket gets a plug at each end (wires matched by signal).
+  const connectors = [{id: 'UART', kind: 'zh-4', role: 'socket', pins: names, signals: ['TX', 'PWM', 'GND', 'V+']}];
+  return {id: 'lidar-ld19p', name: '2D 라이다 (FHL-LD19P)', category: CAT, width: W, height: H, svg: svg(W, H, b), pins, connectors};
 })();
 
 // ---------- 6. USB-UART adapter for the lidar (CP2102, ≈ 29.5 × 13.7 mm) ----------
@@ -406,7 +408,8 @@ const usbUartLD = (() => {
     ...names.map((n, i) => pin(n, 10, 10 + i * 10, 'left', labels[n])),
     pin('USB', 130, 30, 'right', 'USB (PC/라즈베리 파이 연결)', {cable: 'usb'}),
   ];
-  return {id: 'usb-uart-ld', name: 'USB-UART 어댑터 (CP2102)', category: CAT, width: W, height: H, svg: svg(W, H, b), pins};
+  const connectors = [{id: 'LIDAR', kind: 'zh-4', role: 'socket', pins: names, signals: ['TX', 'PWM', 'GND', 'V+']}];
+  return {id: 'usb-uart-ld', name: 'USB-UART 어댑터 (CP2102)', category: CAT, width: W, height: H, svg: svg(W, H, b), pins, connectors};
 })();
 
 export const moduleParts = [l298n, tb6612fng, uln2003, mpu6050, piCamera, lidarLD19P, usbUartLD];

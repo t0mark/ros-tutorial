@@ -21,7 +21,7 @@ test('built-in parts validate, keep pins on the 10 px grid and inside the part',
     assert.equal(part.width % GRID, 0, part.id); assert.equal(part.height % GRID, 0, part.id);
     for (const p of part.pins) assert.ok(p.x % GRID === 0 && p.y % GRID === 0, `${part.id}.${p.id}`);
   }
-  for (const id of ['raspberry-pi-5', 'arduino-uno', 'led', 'resistor', 'ground', 'tt-motor', 'n20-motor', 'servo-sg90', 'stepper-28byj48', 'l298n', 'uln2003', 'mpu6050', 'tact-switch', 'pi-camera', 'lidar-ld19p', 'usb-uart-ld', 'tb6612fng', 'breadboard-half', 'breadboard-full', 'esp32-devkitc', 'hc-sr04', 'hc-05', 'piezo-buzzer', 'battery-aa', 'battery-holder-2aa', 'battery-holder-3aa', 'display-7in-hdmi', 'monitor', 'vacuum-motor', 'vacuum-driver', 'vacuum-battery', 'vacuum-switch', 'buck-szh-ek366', 'cyberbrick-switch']) assert.ok(ids.has(id), id);
+  for (const id of ['raspberry-pi-5', 'arduino-uno', 'led', 'resistor', 'ground', 'tt-motor', 'n20-motor', 'servo-sg90', 'stepper-28byj48', 'l298n', 'uln2003', 'mpu6050', 'tact-switch', 'pi-camera', 'lidar-ld19p', 'usb-uart-ld', 'tb6612fng', 'breadboard-half', 'breadboard-full', 'esp32-devkitc', 'hc-sr04', 'hc-05', 'piezo-buzzer', 'battery-aa', 'battery-holder-2aa', 'battery-holder-3aa', 'display-7in-hdmi', 'monitor', 'vacuum-motor', 'vacuum-driver', 'vacuum-battery', 'vacuum-switch', 'buck-szh-ek366', 'cyberbrick-switch', 'wago-221-415']) assert.ok(ids.has(id), id);
 });
 
 test('Raspberry Pi 5 exposes the full 40-pin header', () => {

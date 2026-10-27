@@ -169,7 +169,7 @@ function raspberryPi5Art() {
   }
 
   // Branding silkscreen.
-  b += text(188, 66, 'SBC (Raspberry Pi 5)', {size: 9, fill: SILK, weight: 'bold', anchor: 'start'});
+  b += text(188, 66, 'Raspberry Pi 5', {size: 9, fill: SILK, weight: 'bold', anchor: 'start'});
   b += text(188, 77, '© 2023 Raspberry Pi', {size: 5, fill: SILK, anchor: 'start'});
   // Small raspberry logo (drawn around (232, 68), shifted next to the title).
   b += `<g transform="translate(-56 -1)">`;

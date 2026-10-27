@@ -61,9 +61,7 @@ export const examples = [
     add('LIDAR', 'lidar-ld19p', 420, 360, 'LD19P 라이다'),
     add('UART', 'usb-uart-ld', 760, 400, 'USB-UART 어댑터'),
     wire('W1', 'CAM.CSI', 'PI.CAM0'),
-    wire('W2', 'LIDAR.TX', 'UART.TX', {color: '#1f6fd1'}),
-    wire('W3', 'LIDAR.GND', 'UART.GND'),
-    wire('W4', 'LIDAR.P5V', 'UART.P5V'),
+    {type: 'mate', id: 'J1', ends: [{component: 'LIDAR', connector: 'UART'}, {component: 'UART', connector: 'LIDAR'}]},
     wire('W5', 'UART.USB', 'PI.USB3'),
   ])},
   {title: 'Arduino + TB6612FNG + N20 모터', build: () => build('Arduino TB6612FNG 모터 제어', [

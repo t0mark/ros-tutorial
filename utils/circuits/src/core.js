@@ -469,13 +469,22 @@ export function routeBundle(doc, from, to, options = {}) {
 // An end that is off the grid (e.g. the centre of a 2-pin connector) would start with a tiny sideways jog;
 // shift the first straight run instead so the line leaves (and arrives) straight.
 export function straightenEnds(path, startDir, endDir) {
+  // A jog shorter than one grid step, either first or right after the straight stub out of the end, is removed by
+  // moving the following run onto the end's line.
   const fix = (pts, dir) => {
-    if (!dir || pts.length < 3) return pts;
-    const key = dir === 'left' || dir === 'right' ? 'y' : 'x', [p0, p1] = pts;
-    if (p0[key] === p1[key] || Math.abs(p0[key] - p1[key]) >= GRID || p0[key === 'y' ? 'x' : 'y'] !== p1[key === 'y' ? 'x' : 'y']) return pts;
-    const old = p1[key], out = [p0, ...pts.slice(2).map(p => ({...p}))];
-    for (let i = 1; i < out.length - 1 && out[i][key] === old; i++) out[i][key] = p0[key];
-    return simplify(out);
+    if (!dir) return pts;
+    const key = dir === 'left' || dir === 'right' ? 'y' : 'x', other = key === 'y' ? 'x' : 'y';
+    for (const i of [0, 1]) {
+      if (pts.length < i + 3) break;
+      const [a, b] = [pts[i], pts[i + 1]];
+      if (i === 1 && pts[0][key] !== a[key]) break; // the stub must run straight along the end's direction
+      if (a[other] !== b[other] || a[key] === b[key] || Math.abs(a[key] - b[key]) >= GRID) continue;
+      const old = b[key], out = pts.map(p => ({...p}));
+      out.splice(i + 1, 1);
+      for (let j = i + 1; j < out.length - 1 && out[j][key] === old; j++) out[j][key] = a[key];
+      return simplify(out);
+    }
+    return pts;
   };
   return fix(fix(path, startDir).reverse(), endDir).reverse();
 }
@@ -542,7 +551,7 @@ export function routeWires(doc, {only = null, cache = null} = {}) {
 }
 
 // Seated plug housings by connector family: colour, edge, length out of the socket (px).
-const PLUG_HOUSINGS = {xh: ['#efece4', '#b3ad9e', 16], ph: ['#f1eee6', '#b3ad9e', 12], mr30: ['#f2b51b', '#b9850c', 22], xt30: ['#f2b51b', '#b9850c', 26], kf: ['#2fa24e', '#1d6e33', 14]};
+const PLUG_HOUSINGS = {xh: ['#efece4', '#b3ad9e', 16], ph: ['#f1eee6', '#b3ad9e', 12], mr30: ['#f2b51b', '#b9850c', 22], xt30: ['#f2b51b', '#b9850c', 26], kf: ['#2fa24e', '#1d6e33', 14], zh: ['#f1eee6', '#b3ad9e', 14]};
 const housingOf = kind => PLUG_HOUSINGS[kind.split('-')[0]] ?? ['#efece4', '#b3ad9e', 16];
 // Socket geometry: pin positions in mating order, centre, outward direction.
 function socketGeometry(doc, end) {
@@ -698,7 +707,7 @@ function bundle(path, s, colors) {
     return `<path d="${p}" fill="none" stroke="${shade(colors[k], 0.62)}" stroke-width="3.6" stroke-linejoin="round" stroke-linecap="round"/><path d="${p}" fill="none" stroke="${colors[k]}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>`;
   }).join('');
 }
-const SIGNAL_COLORS = {'V+': '#d32f2f', GND: '#1a1a1a'};
+const SIGNAL_COLORS = {'V+': '#d32f2f', GND: '#1a1a1a', TX: '#f2c40f', PWM: '#1f6fd1'};
 
 // A mated connector: the plug's lead as a bundle of coloured conductors and the plug housing seated in the socket.
 // A cable between two sockets gets a seated plug at both ends; red for V+, black for GND.

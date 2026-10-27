@@ -45,48 +45,50 @@ function jstColumn(x, y0, n, side, {w = 16, color = '#f1eee6', edge = '#b3ad9e'}
 
 // ---------------------------------------------------------------- Vacuum motor: BLDC fan unit, 3 phase wires to MR30
 function vacuumMotor() {
-  const W = 260, H = 200;
-  // Phase wires from the stator top to the MR30 plug (shortened); stub when mated.
-  const wires = [['#2f7fd6', 72, 220], ['#e8c21c', 90, 230], ['#2e9e5b', 108, 240]];
+  // Side view as in the kit photo: wide dark fan housing (Ø41 × 25 mm), silver ring, black stator frame
+  // (27 × 16 mm) with copper windings showing, small board on top; blue/yellow/green phase wires loop to an MR30 plug.
+  const W = 240, H = 250;
+  const wires = [['#3a8fd6', 84], ['#e8c21c', 90], ['#3aa66a', 96]];
   let lead = '', stub = '';
-  wires.forEach(([color, sx, ex], i) => {
-    lead += cableWire(`M${sx} 30 C${sx} ${6 - i * 2} ${ex} ${6 + i * 0} ${ex} 60 V110`, color, 3.6);
-    stub += cableWire(`M${sx} 30 C${sx} 24 ${90 + (i - 1) * 4} 24 ${90 + (i - 1) * 4} 20`, color, 3.6);
+  wires.forEach(([color, sx], i) => {
+    const ex = 200 + i * PITCH;
+    lead += cableWire(`M${sx} 72 C${sx} ${18 - i * 4} ${ex} ${18 - i * 4} ${ex} 70 V112`, color, 3.4);
+    stub += cableWire(`M${sx} 72 V70`, color, 3.4);
   });
   let b = '';
-  // Fan shroud (Ø41 x 25 mm), dark gray with lighter intake ring at the bottom.
-  b += `<rect x="10" y="92" width="161" height="94" rx="10" fill="#3a3d42" stroke="#24262a" stroke-width="0.9"/>`
-    + `<rect x="14" y="96" width="153" height="10" rx="5" fill="${HL2}"/>`
-    + `<rect x="10" y="150" width="161" height="36" rx="10" fill="${SH}"/>`
-    + `<rect x="30" y="184" width="121" height="8" rx="3" fill="#a8adb4"/><rect x="30" y="184" width="121" height="2.5" fill="${HL}"/>`;
-  // Stator / motor frame on top (27.5 x 17 mm): black frame, copper windings, posts, center bearing.
-  b += `<rect x="36" y="26" width="108" height="68" rx="3" fill="#1f2023" stroke="#000000" stroke-width="0.7"/>`;
-  for (const x of [44, 112]) {
-    b += `<rect x="${x}" y="38" width="24" height="48" rx="2" fill="#b86a2c"/><rect x="${x + 2}" y="38" width="5" height="48" fill="${HL2}"/>`;
-    for (let y = 44; y < 86; y += 6) b += `<path d="M${x} ${y} H${x + 24}" stroke="#8a4c1c" stroke-width="0.8"/>`;
+  // Fan housing: dark matte shell, soft top highlight and side shading, light intake plate underneath.
+  b += `<path d="M10 152 Q10 140 22 140 H159 Q171 140 171 152 V219 Q171 237 153 237 H28 Q10 237 10 219 Z" fill="#35383d"/>`
+    + `<path d="M14 146 H167" stroke="#ffffff" stroke-opacity="0.22" stroke-width="3" stroke-linecap="round"/>`
+    + `<rect x="10" y="150" width="20" height="80" rx="9" fill="#ffffff" fill-opacity="0.07"/><rect x="146" y="150" width="25" height="82" rx="10" fill="#000000" fill-opacity="0.22"/>`
+    + `<path d="M12 222 Q14 236 30 237 H151 Q167 236 169 222" fill="none" stroke="#000000" stroke-opacity="0.3" stroke-width="2"/>`
+    + `<rect x="50" y="235" width="81" height="7" rx="3" fill="#9aa0a7"/><rect x="50" y="235" width="81" height="2" fill="#ffffff" fill-opacity="0.4"/>`;
+  // Silver bearing ring between housing and stator.
+  b += `<rect x="48" y="128" width="85" height="14" rx="3" fill="#b9bec4"/><rect x="48" y="129" width="85" height="4" fill="#ffffff" fill-opacity="0.45"/><rect x="48" y="138" width="85" height="4" fill="#000000" fill-opacity="0.15"/>`;
+  // Stator frame: black plastic posts with copper windings visible between them.
+  b += `<rect x="37" y="74" width="107" height="56" rx="2" fill="#121315"/>`;
+  for (const [x, w] of [[47, 26], [81, 19], [108, 26]]) {
+    b += `<rect x="${x}" y="80" width="${w}" height="44" fill="#a85f26"/>`;
+    for (let y = 83; y < 124; y += 4) b += `<path d="M${x} ${y} H${x + w}" stroke="#6f3d16" stroke-width="1.1"/>`;
+    b += `<rect x="${x}" y="80" width="${w}" height="44" fill="#000000" fill-opacity="0.25"/><rect x="${x + 3}" y="80" width="4" height="44" fill="#ffd2a1" fill-opacity="0.25"/>`;
   }
-  b += `<rect x="76" y="34" width="28" height="56" rx="3" fill="#c3c7cc" stroke="#8a9098" stroke-width="0.6"/><rect x="80" y="34" width="6" height="56" fill="${HL}"/>`
-    + `<rect x="88" y="28" width="4" height="8" fill="#dfe2e5"/>`;
-  b += `<rect x="36" y="22" width="108" height="8" rx="2" fill="#2b2d31"/>`;
-  for (const x of [44, 72, 108, 136]) b += `<rect x="${x - 2}" y="14" width="4" height="10" fill="#c3c7cc"/><circle cx="${x}" cy="14" r="2.6" fill="#dfe2e5"/>`;
-  b += text(90, 136, 'BLDC', {size: 7, weight: 'bold', fill: '#8b9097'});
-  // MR30 plug: yellow housing, gray rear shell; contacts face down.
-  let plug = `<rect x="212" y="100" width="36" height="14" rx="2" fill="#8a8f96"/>`
-    + `<rect x="210" y="112" width="40" height="34" rx="2.5" fill="${AMASS}" stroke="${AMASS_D}" stroke-width="0.8"/>`
-    + `<rect x="210" y="112" width="40" height="3" rx="1.5" fill="${HL}"/>`;
-  for (let i = 0; i < 3; i++) {
-    const x = 220 + i * PITCH;
-    plug += `<circle cx="${x}" cy="140" r="3.4" fill="#7a5a10"/><circle cx="${x}" cy="140" r="2" fill="${GOLD}"/>`;
-  }
-  plug += text(230, 125, 'MR30', {size: 5.5, weight: 'bold', fill: '#6b4a05'});
+  for (const x of [37, 73, 100, 134]) b += `<rect x="${x}" y="74" width="10" height="56" rx="1" fill="#1d1e21"/><rect x="${x + 1}" y="74" width="2.5" height="56" fill="#ffffff" fill-opacity="0.1"/>`;
+  // Board on top with small white terminal spikes and the phase-wire pads.
+  b += `<rect x="33" y="66" width="115" height="9" rx="1.5" fill="#26282c"/><rect x="33" y="66" width="115" height="2.5" fill="#ffffff" fill-opacity="0.15"/>`;
+  for (const x of [41, 59, 122, 140]) b += `<path d="M${x - 3} 66 L${x} 58 L${x + 3} 66 Z" fill="#e9ecef" stroke="#9aa0a7" stroke-width="0.5"/>`;
+  for (const [, x] of wires) b += `<circle cx="${x}" cy="71" r="2.4" fill="#cfd3d8"/>`;
+  // MR30 plug hanging on the lead: grey rear shell, yellow front, contacts at the bottom.
+  let plug = `<rect x="193" y="108" width="34" height="24" rx="2" fill="#8d9298"/><rect x="193" y="108" width="34" height="4" rx="1.5" fill="#ffffff" fill-opacity="0.3"/>`
+    + `<rect x="194" y="130" width="32" height="30" rx="2" fill="${AMASS}" stroke="${AMASS_D}" stroke-width="0.8"/><rect x="195" y="131" width="30" height="4" fill="${HL}"/>`
+    + `<rect x="194" y="146" width="32" height="2" fill="${AMASS_D}" fill-opacity="0.5"/>`;
+  for (let i = 0; i < 3; i++) plug += `<circle cx="${200 + i * PITCH}" cy="155" r="3" fill="#7a5a10"/><circle cx="${200 + i * PITCH}" cy="155" r="1.8" fill="${GOLD}"/>`;
   return {
     id: 'vacuum-motor', name: '청소기 모터 (ZC011)', category: VAC, width: W, height: H,
     ...plugArt(W, H, {lead, body: b, plug, stub}),
-    connectors: [{id: 'J1', kind: 'mr30-3', role: 'plug', pins: ['U', 'V', 'W'], exit: {x: 90, y: 20, dir: 'up'}, colors: wires.map(w => w[0])}],
+    connectors: [{id: 'J1', kind: 'mr30-3', role: 'plug', pins: ['U', 'V', 'W'], exit: {x: 90, y: 70, dir: 'up'}, colors: wires.map(w => w[0])}],
     pins: [
-      pin('U', 220, 140, 'down', 'U · 모터 3상 단자 (MR30, 구동 보드 모터 커넥터로)'),
-      pin('V', 230, 140, 'down', 'V · 모터 3상 단자 (MR30)'),
-      pin('W', 240, 140, 'down', 'W · 모터 3상 단자 (MR30)'),
+      pin('U', 200, 160, 'down', 'U · 모터 3상 단자 (MR30, 구동 보드 모터 커넥터로)'),
+      pin('V', 210, 160, 'down', 'V · 모터 3상 단자 (MR30)'),
+      pin('W', 220, 160, 'down', 'W · 모터 3상 단자 (MR30)'),
     ],
   };
 }
@@ -150,32 +152,35 @@ function vacuumDriver() {
 
 // ---------------------------------------------------------------- Vacuum battery: 2-cell Li-ion pack (≈68 x 37 mm), XT30 lead
 function vacuumBattery() {
-  const W = 350, H = 150;
-  // Leads to the XT30 plug (drawn under the pack); stub when mated.
-  const colors = ['#d8322b', '#222222'];
-  const lead = cableWire('M266 104 C292 104 286 60 308 60 H312', colors[0], 4.4)
-    + cableWire('M266 114 C298 114 290 80 308 80 H312', colors[1], 4.4);
-  const stub = cableWire('M266 104 H272', colors[0], 4.4) + cableWire('M266 114 H272', colors[1], 4.4);
-  // XT30 male plug, contacts face right.
-  const plug = amassColumn(306, 60, 2, 20, 'right', {w: 38, pad: 10})
-    + `<path d="M306 50 L312 50 L306 56 Z" fill="${AMASS_D}"/>`; // chamfered + corner
+  // As in the kit photo: two cells side by side standing upright (37 × 68 mm) in blue shrink wrap with a
+  // groove between them and tape bands, a nickel tab at the top; red/black leads from the bottom corner to an XT30 plug.
+  const W = 250, H = 350;
+  const colors = ['#d8322b', '#1c1c1c'];
+  // Red runs on the outside of the loop, black inside, so the pair never crosses.
+  const lead = cableWire('M36 112 V300 Q36 334 70 334 H198 Q224 334 224 304', colors[0], 4.2)
+    + cableWire('M44 112 V296 Q44 326 72 326 H196 Q216 326 216 304', colors[1], 4.2);
+  const stub = cableWire('M224 296 V302', colors[0], 4.2) + cableWire('M216 296 V302', colors[1], 4.2);
+  // XT30 plug standing up, contacts on top.
+  let plug = `<path d="M20 74 H60 V108 Q60 114 54 114 H26 Q20 114 20 108 Z" fill="${AMASS}" stroke="${AMASS_D}" stroke-width="0.8"/>`
+    + `<path d="M20 74 H27 L20 81 Z" fill="${AMASS_D}"/><rect x="21" y="75" width="38" height="4" fill="${HL}"/><rect x="21" y="96" width="38" height="2" fill="${AMASS_D}" fill-opacity="0.5"/>`;
+  for (const x of [30, 50]) plug += `<rect x="${x - 4}" y="70" width="8" height="10" rx="1.5" fill="#d9be62"/><rect x="${x - 2}" y="70" width="4" height="10" fill="#b08f2e"/>`;
   let b = '';
-  // Pack: blue shrink over two cells side by side.
-  b += `<rect x="4" y="2" width="266" height="146" rx="14" fill="#2f6fd6" stroke="#1d4f93" stroke-width="1"/>`;
-  for (const y of [2, 75]) b += `<rect x="10" y="${y + 8}" width="254" height="14" rx="7" fill="${HL}"/><rect x="10" y="${y + 52}" width="254" height="16" rx="8" fill="${SH}"/>`;
-  b += `<path d="M10 75 H264" stroke="#1d4f93" stroke-width="1.6"/>`;
-  for (const x of [70, 200]) b += `<rect x="${x}" y="4" width="10" height="142" rx="4" fill="#ffffff1f"/>`;
-  // USB-C charge port on the pack end (assumed position).
-  b += `<rect x="0" y="62" width="14" height="26" rx="2" fill="#c3c7cc" stroke="#7d838b" stroke-width="0.6"/><rect x="2" y="66" width="7" height="18" rx="3" fill="#2b2d31"/>`;
-  b += text(137, 38, '7.4V 2000mAh', {size: 8, weight: 'bold', fill: '#ffffff'})
-    + text(137, 111, 'Li-ion 2S', {size: 7, weight: 'bold', fill: '#dbe7fb'});
+  // Shrink-wrapped pack: two cell bulges, centre groove, folded ends, tape bands.
+  b += `<rect x="90" y="30" width="146" height="268" rx="20" fill="#2f6fd6"/>`
+    + `<rect x="98" y="34" width="22" height="260" rx="11" fill="#ffffff" fill-opacity="0.22"/><rect x="172" y="34" width="18" height="260" rx="9" fill="#ffffff" fill-opacity="0.16"/>`
+    + `<rect x="150" y="34" width="14" height="260" rx="7" fill="#123f8e" fill-opacity="0.55"/><rect x="214" y="34" width="20" height="260" rx="10" fill="#000000" fill-opacity="0.18"/>`
+    + `<rect x="90" y="96" width="146" height="40" fill="#1d58b8" fill-opacity="0.55"/><rect x="90" y="208" width="146" height="40" fill="#1d58b8" fill-opacity="0.55"/>`
+    + `<path d="M96 100 Q120 108 150 100 Q180 92 230 102" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="2"/><path d="M96 212 Q130 220 160 212 Q196 204 230 214" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="2"/>`
+    + `<path d="M98 36 Q163 26 228 36" fill="none" stroke="#ffffff" stroke-opacity="0.3" stroke-width="3"/><path d="M98 292 Q163 302 228 292" fill="none" stroke="#000000" stroke-opacity="0.25" stroke-width="3"/>`;
+  // Nickel tab sticking out at the top right.
+  b += `<rect x="202" y="14" width="26" height="22" rx="2" fill="#c7cbd0" stroke="#8d939a" stroke-width="0.7"/><rect x="204" y="16" width="22" height="5" fill="#ffffff" fill-opacity="0.5"/>`;
   return {
     id: 'vacuum-battery', name: '배터리 (ZC011)', category: VAC, width: W, height: H,
-    ...plugArt(W, H, {lead, body: b, plug, stub, pre: true}),
-    connectors: [{id: 'J1', kind: 'xt30-2', role: 'plug', pins: ['P', 'N'], exit: {x: 270, y: 110, dir: 'right'}, colors}],
+    ...plugArt(W, H, {lead, body: b, plug, stub}),
+    connectors: [{id: 'J1', kind: 'xt30-2', role: 'plug', pins: ['P', 'N'], exit: {x: 220, y: 300, dir: 'down'}, colors}],
     pins: [
-      pin('P', 340, 60, 'right', '+ 단자 (빨강, XT30) · 7.4V 2000mAh'),
-      pin('N', 340, 80, 'right', '− 단자 (검정, XT30)'),
+      pin('P', 30, 70, 'up', '+ 단자 (빨강, XT30) · 7.4V 2000mAh'),
+      pin('N', 50, 70, 'up', '− 단자 (검정, XT30)'),
     ],
   };
 }
@@ -215,37 +220,50 @@ function vacuumSwitch() {
 
 // ---------------------------------------------------------------- SZH-EK366 (HW-688) 5V 5A buck module, 63.4 x 27.5 mm
 function buckSzhEk366() {
+  // Top view following the product photo (63.4 × 27.5 mm): USB-A and output terminal at the left end, "330" power
+  // inductor, 470 µF/16 V and 100 µF/50 V caps, two D-PAKs, SOIC-8 controller, DC jack and input terminal at the right.
   const W = 250, H = 110;
   let b = '';
-  // Blue PCB.
-  b += `<rect x="0.5" y="1" width="249" height="108" rx="2" fill="#1f5fae" stroke="#163f73" stroke-width="0.9"/><rect x="0.5" y="1" width="249" height="3" fill="${HL2}"/>`;
-  // USB-A output socket (top left, mouth on the left edge).
-  b += `<rect x="0" y="4" width="52" height="52" rx="1" fill="#c3c7cc" stroke="#7d838b" stroke-width="0.8"/>`
-    + `<rect x="0" y="10" width="8" height="40" fill="#8a9098"/><rect x="2" y="16" width="5" height="28" fill="#f1efe8"/>`
-    + `<rect x="10" y="8" width="40" height="4" fill="${HL}"/><path d="M14 22 H46 M14 38 H46" stroke="#9aa0a8" stroke-width="1"/>`;
+  // Blue PCB with lighter copper pours, traces and vias under the solder mask.
+  b += `<rect x="0.5" y="1" width="249" height="108" rx="2" fill="#1d5cb0" stroke="#143f78" stroke-width="0.9"/><rect x="0.5" y="1" width="249" height="3" fill="${HL2}"/>`
+    + `<path d="M36 58 H96 V104 H36 Z M150 66 H222 V104 H150 Z M110 4 H190 V44 H110 Z" fill="#2a6dc4" opacity="0.8"/>`
+    + `<path d="M58 60 V44 M140 50 H182 M122 98 H148 M170 36 V66 M100 56 H118" stroke="#3a7fd6" stroke-width="2.4" stroke-linecap="round" fill="none"/>`;
+  for (const [x, y] of [[112, 50], [128, 96], [176, 30], [184, 98], [104, 100], [44, 60], [148, 30]]) b += `<circle cx="${x}" cy="${y}" r="1.6" fill="#c9b26a"/><circle cx="${x}" cy="${y}" r="0.7" fill="#143f78"/>`;
+  // USB-A receptacle, mouth on the left edge.
+  b += `<rect x="0" y="4" width="54" height="50" rx="1" fill="#c3c7cc" stroke="#7d838b" stroke-width="0.8"/><rect x="2" y="6" width="50" height="5" fill="${HL}"/>`
+    + `<rect x="0" y="12" width="7" height="34" fill="#8a9098"/><rect x="2" y="17" width="4" height="24" fill="#f1efe8"/>`
+    + `<path d="M14 18 Q20 14 26 18 M14 40 Q20 44 26 40" fill="none" stroke="#9aa0a8" stroke-width="1.2"/><rect x="40" y="18" width="8" height="22" rx="1" fill="#b3b8be"/>`;
   // Power inductor "330".
-  b += `<rect x="56" y="4" width="48" height="48" rx="3" fill="#c9cdd2" stroke="#8a9098" stroke-width="0.8"/><rect x="60" y="8" width="40" height="40" rx="2" fill="#d7dade"/>`
-    + text(80, 28, '330', {size: 11, weight: 'bold', fill: '#3a3d42'});
-  // D-PAK transistors, controller IC, small SOT, passives, diode.
-  const dpak = (x, y) => `<rect x="${x}" y="${y}" width="24" height="20" rx="1" fill="#1b1c1f"/><rect x="${x + 2}" y="${y - 8}" width="20" height="9" fill="#c3c7cc"/><rect x="${x + 3}" y="${y + 20}" width="3" height="6" fill="#c3c7cc"/><rect x="${x + 18}" y="${y + 20}" width="3" height="6" fill="#c3c7cc"/>`;
-  b += dpak(116, 16) + dpak(86, 70);
-  b += chip(132, 70, 18, 12, 4, {body: '#1b1c1f'}) + chip(160, 12, 12, 8, 3, {body: '#1b1c1f'});
-  for (const [x, y] of [[148, 44], [158, 44], [168, 44], [120, 56], [130, 56], [156, 90], [168, 62]]) b += smd(x, y, 7, 3.5, '#2b2b2b', '#c7c7c7');
-  b += `<rect x="168" y="48" width="14" height="8" rx="1" fill="#2b2d31"/><rect x="179" y="48" width="3" height="8" fill="#9aa0a8"/>`;
-  // Electrolytic caps: 470 µF 16 V (output), 100 µF 50 V (input).
-  for (const [x, v1, v2] of [[62, '470', '16V'], [192, '100', '50V']]) {
-    b += `<circle cx="${x}" cy="84" r="16" fill="#c3c7cc" stroke="#7d838b" stroke-width="0.7"/><circle cx="${x}" cy="84" r="16" fill="none" stroke="${HL}" stroke-width="1.5"/>`
-      + text(x, 79, v1, {size: 6.5, weight: 'bold', fill: '#33363b'}) + text(x, 89, v2, {size: 5.5, weight: 'bold', fill: '#33363b'});
-  }
-  // DC barrel jack (top right, opening on the right edge).
-  b += `<rect x="196" y="2" width="54" height="36" rx="2" fill="#1d1e21"/><rect x="196" y="2" width="54" height="4" fill="${HL2}"/>`
-    + `<rect x="232" y="8" width="18" height="24" rx="2" fill="#2c2d31"/><circle cx="244" cy="20" r="3" fill="#c3c7cc"/>`;
-  // Screw terminals: output (left, opening left) and input (right, opening right).
-  b += `<g transform="rotate(90 20 70)">${screwTerminal(20, 70, 2, {opening: 'down'})}</g>`
-    + `<g transform="rotate(90 230 70)">${screwTerminal(230, 70, 2, {opening: 'up'})}</g>`;
-  b += text(39, 70, '−', {size: 7, weight: 'bold', fill: '#ffffff'}) + text(39, 90, '+', {size: 7, weight: 'bold', fill: '#ffffff'})
-    + text(211, 70, '−', {size: 7, weight: 'bold', fill: '#ffffff'}) + text(211, 90, '+', {size: 7, weight: 'bold', fill: '#ffffff'});
-  b += text(125, 102, '5V 5A', {size: 6.5, weight: 'bold', fill: '#ffffff'});
+  b += `<rect x="58" y="5" width="48" height="48" rx="3" fill="#bfc3c8" stroke="#80868e" stroke-width="0.8"/><rect x="61" y="8" width="42" height="42" rx="2" fill="#d4d7db"/>`
+    + `<path d="M61 8 H103 L99 12 H65 Z" fill="#ffffff" opacity="0.5"/>` + text(82, 30, '330', {size: 12, weight: 'bold', fill: '#45484e'});
+  // D-PAK packages (metal tab up), SOIC-8 controller, SOT-23s and 0805 passives.
+  const dpak = (x, y, mark) => `<rect x="${x + 3}" y="${y - 7}" width="20" height="9" rx="1" fill="#c3c7cc"/><rect x="${x}" y="${y}" width="26" height="20" rx="1.5" fill="#1b1c1f"/>`
+    + `<rect x="${x + 1}" y="${y + 1}" width="24" height="3" fill="${HL2}"/><rect x="${x + 4}" y="${y + 20}" width="3" height="6" fill="#c3c7cc"/><rect x="${x + 19}" y="${y + 20}" width="3" height="6" fill="#c3c7cc"/>`
+    + (mark ? text(x + 13, y + 12, mark, {size: 5, fill: '#9aa0a8'}) : '');
+  b += dpak(116, 16, '') + dpak(98, 70, 'SS54');
+  b += chip(142, 52, 20, 12, 4, {body: '#1b1c1f'}) + chip(160, 12, 10, 7, 3, {body: '#1b1c1f'}) + chip(176, 52, 9, 6, 3, {body: '#1b1c1f'});
+  for (const [x, y, c] of [[134, 44, '#2b2b2b'], [146, 44, '#8b6b3e'], [158, 44, '#2b2b2b'], [170, 44, '#8b6b3e'], [128, 68, '#2b2b2b'], [134, 80, '#8b6b3e'], [160, 70, '#2b2b2b'], [170, 70, '#2b2b2b'], [150, 88, '#8b6b3e'], [182, 14, '#2b2b2b'], [144, 22, '#8b6b3e']])
+    b += smd(x, y, 7, 3.5, c, '#c7c7c7');
+  // Electrolytic caps seen from above: aluminium top with K vent scoring and print.
+  const cap = (cx, cy, v1, v2) => `<circle cx="${cx}" cy="${cy}" r="16" fill="#1c1d20"/><circle cx="${cx}" cy="${cy}" r="15" fill="#cdd1d6" stroke="#8a9098" stroke-width="0.7"/>`
+    + `<circle cx="${cx - 3}" cy="${cy - 3}" r="9" fill="#ffffff" opacity="0.3"/><path d="M${cx - 8} ${cy} H${cx + 8} M${cx} ${cy - 8} V${cy + 8}" stroke="#9aa0a8" stroke-width="0.9"/>`
+    + text(cx - 4, cy - 2, v1, {size: 6, weight: 'bold', fill: '#2f3236', rotate: -25}) + text(cx + 1, cy + 6, v2, {size: 5.5, weight: 'bold', fill: '#2f3236', rotate: -25})
+    + text(cx + 8, cy - 8, 'VT', {size: 5, weight: 'bold', fill: '#2f3236', rotate: -25});
+  b += cap(68, 82, '470', '16V') + cap(196, 76, '100', '50V');
+  // DC barrel jack, opening on the right end.
+  b += `<rect x="198" y="2" width="52" height="38" rx="2" fill="#1a1b1e"/><rect x="198" y="2" width="52" height="4" fill="${HL2}"/>`
+    + `<rect x="232" y="8" width="18" height="26" rx="2" fill="#2a2b2f"/><circle cx="243" cy="21" r="5" fill="#0d0d0f"/><circle cx="243" cy="21" r="1.8" fill="#c3c7cc"/>`;
+  // Blue screw terminals with brass screws: output (left end) and input (right end).
+  const terminal = (x, open) => {
+    let out = `<rect x="${x}" y="58" width="28" height="46" rx="2" fill="#1f6fd1"/><rect x="${open === 'left' ? x : x + 23}" y="58" width="5" height="46" fill="#174f97"/><rect x="${x}" y="58" width="28" height="3" fill="${HL2}"/>`;
+    for (const y of [70, 90]) out += `<circle cx="${x + 14}" cy="${y}" r="7" fill="#c9b45a" stroke="#8c7a2e" stroke-width="0.8"/><circle cx="${x + 12.5}" cy="${y - 1.5}" r="3.5" fill="#ffffff" opacity="0.35"/><path d="M${x + 9} ${y} H${x + 19}" stroke="#6e5f1f" stroke-width="1.8" transform="rotate(-30 ${x + 14} ${y})"/>`;
+    return out;
+  };
+  b += terminal(6, 'left') + terminal(216, 'right');
+  // Silkscreen: polarity at the terminals, power LED.
+  b += text(40, 70, '−', {size: 7, weight: 'bold', fill: '#ffffff'}) + text(40, 90, '+', {size: 7, weight: 'bold', fill: '#ffffff'})
+    + text(210, 70, '−', {size: 7, weight: 'bold', fill: '#ffffff'}) + text(210, 90, '+', {size: 7, weight: 'bold', fill: '#ffffff'})
+    + `<rect x="44" y="99" width="7" height="4" fill="#f2f2f2"/><rect x="46" y="99.6" width="3" height="2.8" fill="#e5332a"/>` + text(58, 101, 'PWR', {size: 5, weight: 'bold', fill: '#ffffff'});
   return {
     id: 'buck-szh-ek366', name: '강압 컨버터 (SZH-EK366)', category: '전원', width: W, height: H, svg: svg(W, H, b),
     pins: [
@@ -301,4 +319,34 @@ function cyberbrickSwitch() {
   };
 }
 
-export const kitParts = [vacuumMotor(), vacuumDriver(), vacuumBattery(), vacuumSwitch(), buckSzhEk366(), cyberbrickSwitch()];
+// ---------------------------------------------------------------- WAGO 221-415 lever connector (5 conductors)
+// Top view, 29.9 × 18.3 mm: clear housing with the shared bus bar visible inside, five orange levers, wire entries
+// on the front face. All five clamps are connected together.
+function wago221415() {
+  const W = 120, H = 80, xs = [20, 40, 60, 80, 100];
+  let b = '';
+  // Clear polycarbonate housing.
+  b += `<rect x="1" y="2" width="118" height="72" rx="5" fill="#d7e0e6" stroke="#9fb0bb" stroke-width="1"/>`
+    + `<rect x="4" y="5" width="112" height="66" rx="4" fill="#eef3f6" opacity="0.75"/>`
+    + `<rect x="4" y="5" width="112" height="6" rx="3" fill="#ffffff" opacity="0.7"/>`;
+  // Tin-plated bus bar and clamp springs seen through the housing.
+  b += `<rect x="8" y="44" width="104" height="8" rx="1" fill="#b9bfc6" opacity="0.85"/><rect x="8" y="44" width="104" height="2" fill="#ffffff" opacity="0.5"/>`;
+  for (const x of xs) b += `<path d="M${x - 6} 52 Q${x} 62 ${x + 6} 52" fill="none" stroke="#a7adb4" stroke-width="1.4" opacity="0.8"/>`;
+  // Orange levers (closed), ribbed finger tabs toward the front.
+  for (const x of xs) {
+    b += `<rect x="${x - 8.5}" y="8" width="17" height="46" rx="3" fill="#f07d1a" stroke="#c45e0c" stroke-width="0.8"/>`
+      + `<rect x="${x - 7}" y="9" width="5" height="44" rx="2" fill="#ffffff" opacity="0.25"/>`
+      + `<rect x="${x - 8.5}" y="44" width="17" height="10" rx="3" fill="#e2700f"/>`;
+    for (let y = 46; y < 53; y += 2.4) b += `<path d="M${x - 6} ${y} H${x + 6}" stroke="#b9590a" stroke-width="0.8"/>`;
+  }
+  b += text(60, 26, 'WAGO', {size: 6.5, weight: 'bold', fill: '#7a3a05', rotate: -90}) + text(80, 26, '221', {size: 6.5, weight: 'bold', fill: '#7a3a05', rotate: -90});
+  // Front face: wire entry holes and test slots.
+  b += `<rect x="1" y="62" width="118" height="14" rx="3" fill="#c9d4db" stroke="#9fb0bb" stroke-width="0.8"/>`;
+  for (const x of xs) b += `<rect x="${x - 4}" y="65" width="8" height="8" rx="2" fill="#5d6a73"/><rect x="${x - 2.5}" y="66.5" width="5" height="5" rx="1.5" fill="#2c3439"/>`;
+  return {
+    id: 'wago-221-415', name: '전선 커넥터 (WAGO 221-415)', category: VAC, width: W, height: H, svg: svg(W, H, b),
+    pins: xs.map((x, i) => pin(`${i + 1}`, x, 80, 'down', `전선 ${i + 1} · 5개 단자 모두 내부 연결 (0.2–4 mm²)`)),
+  };
+}
+
+export const kitParts = [vacuumMotor(), vacuumDriver(), vacuumBattery(), vacuumSwitch(), buckSzhEk366(), cyberbrickSwitch(), wago221415()];
