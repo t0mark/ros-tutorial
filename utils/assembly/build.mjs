@@ -1,6 +1,7 @@
 // 조립 시뮬레이터 빌드: STL을 작은 바이너리로 바꾸고 web/과 three.js를 docs/tools/assembly/에 복사한다.
 // STL 원본: reference/로봇청소기/3d_modeling/ (저장소 루트 기준)
-import { mkdir, cp, rm, readFile, writeFile } from 'node:fs/promises';
+// 전자 부품 모델: utils/assembly/models/ (출처·라이선스는 models/SOURCES.md)
+import { mkdir, cp, rm, readFile, writeFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { PARTS } from './web/data.js';
 
@@ -61,7 +62,28 @@ for (const file of [...new Set(PARTS.filter((p) => p.file).map((p) => p.file))])
   models[file] = { url: `models/${name}`, ...meta };
   total += data.length;
 }
+// 웹에서 받은 전자 부품 모델: models/<이름>/<색 hex>.stl (색마다 파일 하나)
+for (const name of [...new Set(PARTS.filter((p) => p.model).map((p) => p.model))]) {
+  const dir = new URL(`models/${name}/`, here);
+  const files = (await readdir(dir)).filter((f) => /^[0-9a-f]{6}\.stl$/i.test(f)).sort();
+  const parts = [];
+  const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+  for (const f of files) {
+    const { data, meta } = pack(parseStl(await readFile(new URL(f, dir))));
+    const out = `models/${name}_${f.replace(/\.stl$/i, '')}.bin`;
+    await writeFile(new URL(out, OUT), data);
+    parts.push({ color: `#${f.slice(0, 6)}`, url: out, ...meta });
+    for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k], meta.min[k]); max[k] = Math.max(max[k], meta.max[k]); }
+    total += data.length;
+  }
+  models[`model:${name}`] = { min, max, parts };
+}
 await writeFile(new URL('models.json', OUT), JSON.stringify(models));
+await cp(new URL('models/SOURCES.md', here), new URL('models/SOURCES.md', OUT));
+for (const name of await readdir(new URL('models/', here))) {
+  const lic = new URL(`models/${name}/LICENSE.txt`, here);
+  try { await cp(lic, new URL(`models/LICENSE-${name}.txt`, OUT)); } catch {}
+}
 
 await mkdir(new URL('vendor/addons/controls/', OUT), { recursive: true });
 await mkdir(new URL('vendor/addons/utils/', OUT), { recursive: true });
@@ -70,4 +92,4 @@ await cp(new URL('examples/jsm/controls/OrbitControls.js', THREE), new URL('vend
 await cp(new URL('examples/jsm/utils/BufferGeometryUtils.js', THREE), new URL('vendor/addons/utils/BufferGeometryUtils.js', OUT));
 await cp(new URL('LICENSE', THREE), new URL('vendor/THREE-LICENSE.txt', OUT));
 
-console.log(`조립 시뮬레이터 빌드: ${fileURLToPath(OUT)} (모델 ${Object.keys(models).length}개, ${(total / 1048576).toFixed(1)}MB)`);
+console.log(`조립 시뮬레이터 빌드: ${fileURLToPath(OUT)} (모델 ${Object.keys(models).length}종, ${(total / 1048576).toFixed(1)}MB)`);

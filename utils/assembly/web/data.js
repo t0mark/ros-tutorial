@@ -2,7 +2,9 @@
 // 좌표계: mm, z 위쪽, +x 앞쪽(캐스터 쪽), -x 뒤쪽(먼지통 쪽), +y 왼쪽(흡입 모터 쪽).
 // 본체(obj_5_electronics.stl)의 원래 좌표를 그대로 월드 좌표로 쓴다.
 // 3D 프린팅 부품의 조립 위치는 STL이 출력용 배치라 조립설명서 사진과 본체 형상을 대조해 다시 잡은 값이다.
-// 새 전자 부품은 3D 모델이 없어 판매 페이지 치수로 만든 단순 형상이다.
+// 전자 부품 중 재배포가 허용된 3D 모델을 찾은 것(model)은 그 모델을 쓴다. 출처·라이선스는 models/SOURCES.md.
+// 모델을 찾지 못한 부품은 판매 페이지 치수로 만든 단순 형상(shape)이다.
+// model 부품의 anchor와 rot는 내려받은 모델 자체 좌표(mm) 기준이다.
 
 // transform: matrix = T(pos) · R · T(-anchor)
 //   rot: [['x', 도], ['z', 도], ...] 앞에서부터 차례로 적용
@@ -21,19 +23,6 @@ const C = {
   board: '#1f6f3a', red: '#c8312b', blue: '#2558b8', black: '#26282c', dark: '#3a3d42',
   metal: '#b9bec5', brass: '#c9a646', white: '#eef0f2', cell: '#3c6fd1', wago: '#f2a530', yellow: '#e8c22a',
 };
-
-// N20 크기 기어드 모터(Pololu 마이크로 금속 기어 모터): 기어박스 12×10×9, 모터 Ø12×15, 축 Ø3
-const n20 = () => [
-  box([12, 9, 10], [0, -7.5, 0], C.metal),
-  cyl(6, 15, 'y', [0, 4.5, 0], C.metal),
-  cyl(1.5, 10, 'y', [0, -17, 0], C.metal),
-];
-// MG90S 서보: 몸체 22.8×12.2×22.5, 귀 포함 32.5, 출력축은 몸체 중심에서 5.5mm 치우침
-const servo = (s) => [
-  box([22.8, 22.5, 12.2], [0, 0, 0], C.black),
-  box([32.5, 2.5, 12.2], [0, s * 5, 0], C.black),
-  cyl(2.4, 4, 'y', [5.5, s * 13.25, 0], C.white),
-];
 
 export const KINDS = {
   pla: { label: '3D 프린팅 (PLA)', color: '#38b75c' },
@@ -57,8 +46,9 @@ export const PARTS = [
   { id: 'latch-2', name: '잠금장치', bom: 4, kind: 'pla', group: 'bin', step: 'bin-lid', file: 'latch.stl', tf: { rot: [['x', 180]], anchor: 'center', pos: [-58.1, -40.6, 51.05] } },
 
   // 롤러
-  { id: 'motor-front', name: 'DC 모터 (Pololu 30:1 HP 6V)', bom: 32, kind: 'part', tag: 'changed', group: 'roller', step: 'prep-motor', shape: n20(), tf: { pos: [56, 98, 6] } },
-  { id: 'motor-rear', name: 'DC 모터 (Pololu 30:1 HP 6V)', bom: 32, kind: 'part', tag: 'changed', group: 'roller', step: 'prep-motor', shape: n20(), tf: { pos: [30, 98, 6] } },
+  // N20 모델: 몸체 10×12×25(z -24..1), 축이 -z 쪽(z -33..-23). 축이 -y(롤러 쪽)를 보게 눕힌다.
+  { id: 'motor-front', name: 'DC 모터 (Pololu 30:1 HP 6V)', bom: 32, kind: 'part', tag: 'changed', group: 'roller', step: 'prep-motor', model: 'n20', tf: { rot: [['x', -90], ['y', 90]], anchor: [0, 0, -11], pos: [56, 98, 6] } },
+  { id: 'motor-rear', name: 'DC 모터 (Pololu 30:1 HP 6V)', bom: 32, kind: 'part', tag: 'changed', group: 'roller', step: 'prep-motor', model: 'n20', tf: { rot: [['x', -90], ['y', 90]], anchor: [0, 0, -11], pos: [30, 98, 6] } },
   { id: 'housing', name: '롤러 하우징', bom: 7, kind: 'pla', group: 'roller', step: 'roller-bolt', file: 'obj_1_body_screw.stl', tf: HOUSING },
   { id: 'shaft-front', name: '롤러 축', bom: 9, kind: 'pla', group: 'roller', step: 'roller-shaft', file: 'obj_8_Body43.stl', tf: { rot: [['z', 90]], anchor: 'center', pos: [56, -1, 6] } },
   { id: 'shaft-rear', name: '롤러 축', bom: 9, kind: 'pla', group: 'roller', step: 'roller-shaft', file: 'obj_9_Body42.stl', tf: { rot: [['z', 90]], anchor: 'center', pos: [30, -1, 6] } },
@@ -73,8 +63,9 @@ export const PARTS = [
   { id: 'wheel-r', name: '휠', bom: 12, kind: 'pla', group: 'wheel', step: 'wheel-tire', file: 'obj_3_Body1.stl', tf: { rot: [['x', 90]], anchor: 'center', pos: [-12, -103, 23] } },
   { id: 'tire-l', name: '타이어', bom: 13, kind: 'tpu', group: 'wheel', step: 'wheel-tire', file: 'tire_1.stl', tf: { rot: [['x', -90]], anchor: 'center', pos: [-12, 103, 23] } },
   { id: 'tire-r', name: '타이어', bom: 13, kind: 'tpu', group: 'wheel', step: 'wheel-tire', file: 'tire_2.stl', tf: { rot: [['x', 90]], anchor: 'center', pos: [-12, -103, 23] } },
-  { id: 'servo-l', name: '서보 모터 (MG90S 360도)', bom: 33, kind: 'part', tag: 'changed', group: 'wheel', step: 'wheel-servo', shape: servo(1), tf: { pos: [-17.5, 77.75, 23] } },
-  { id: 'servo-r', name: '서보 모터 (MG90S 360도)', bom: 33, kind: 'part', tag: 'changed', group: 'wheel', step: 'wheel-servo', shape: servo(-1), tf: { pos: [-17.5, -77.75, 23] } },
+  // MG90S 모델: 몸체 바닥 z 0, 고정 귀 z 18~20, 출력축 x +5 쪽 위(+z). 귀 중심을 기존 위치(y ±82.75)에 맞춘다.
+  { id: 'servo-l', name: '서보 모터 (MG90S 360도)', bom: 33, kind: 'part', tag: 'changed', group: 'wheel', step: 'wheel-servo', model: 'mg90s', tf: { rot: [['x', -90]], anchor: [0, 0, 19], pos: [-17.5, 82.75, 23] } },
+  { id: 'servo-r', name: '서보 모터 (MG90S 360도)', bom: 33, kind: 'part', tag: 'changed', group: 'wheel', step: 'wheel-servo', model: 'mg90s', tf: { rot: [['x', 90]], anchor: [0, 0, 19], pos: [-17.5, -82.75, 23] } },
 
   // 캐스터
   { id: 'caster-wheel', name: '캐스터 휠', bom: 15, kind: 'pla', group: 'caster', step: 'caster-bearing', file: 'obj_12_Body1.stl', tf: { rot: [['x', 90]], anchor: 'center', pos: [97, 0, 3] } },
@@ -92,11 +83,13 @@ export const PARTS = [
   { id: 'conv-2', name: '강압 컨버터 ② (SZH-EK366)', bom: 30, kind: 'part', group: 'lid', step: 'lid-boards',
     shape: [box([21, 43, 1.6], [0, 0, -6], C.blue), box([12, 12, 7], [0, 6, -1.5], C.dark), box([8, 8, 10], [0, -12, -0.2], C.dark)], tf: { pos: [-37, 4, 68] } },
   { id: 'rpi', name: '라즈베리 파이 5', bom: 27, kind: 'part', group: 'lid', step: 'lid-boards',
-    shape: [box([56, 85, 1.6], [0, 0, 0], C.board), box([16, 21, 13.5], [-18, 33, 7.5], C.metal), box([14.5, 17, 16], [0, 34, 8.8], C.metal), box([14.5, 17, 16], [18, 34, 8.8], C.metal), box([15, 15, 2.5], [0, -8, 2], C.dark)],
-    tf: { pos: [-37, 4, 78] } },
-  { id: 'lidar-mount', name: '라이다 마운트', bom: 17, kind: 'pla', group: 'lid', step: 'lid-lidar', file: 'obj_35_lidar_mount.stl', tf: ON_LID },
+    // 공식 STEP: 기판 x 0..85, y 0..56, 윗면 z 1.3. USB·LAN 단자가 +y 쪽을 보게 돌린다.
+    model: 'rpi5', tf: { rot: [['z', 90]], anchor: [42.5, 28, 0.65], pos: [-37, 4, 78] } },
+  { id: 'lidar-mount', name: '라이다 마운트', bom: 17, kind: 'pla', tag: 'redesign', group: 'lid', step: 'lid-lidar', file: 'obj_35_lidar_mount.stl', tf: ON_LID },
+  // 모델 원점 = 헤드 회전축의 스캔 평면, 고정면은 21mm 아래, 보드 아래 부품은 34.5mm 아래(glTF y 위쪽)
+  // 마운트 윗면(z 85) 중앙에 헤드 축을 두고, 보드 아래 부품이 윗면에 닿게 띄운다. 모터는 -y 쪽으로 판 밖에 걸린다.
   { id: 'lidar', name: '2D LiDAR (A1M8-R6)', bom: 28, kind: 'part', group: 'lid', step: 'lid-lidar',
-    shape: [box([70.3, 96.8, 32], [0, 0, 0], C.black), cyl(28, 23, 'z', [0, 14, 27.5], C.dark)], tf: { pos: [58, 7, 101] } },
+    model: 'rplidar-a1', tf: { rot: [['x', 90], ['z', 90]], anchor: [0, 0, 0], pos: [58, 16, 119.5] } },
 
   // 본체 안쪽 (1층)
   { id: 'brg-wheel-l', name: '베어링 MR128ZZ', bom: 52, kind: 'part', group: 'main', step: 'main-bearing', shape: [tube(6, 4, 3.5, 'y', [0, 0, 0], C.metal)], tf: { pos: [-12, 114.5, 23] } },
@@ -200,7 +193,11 @@ export const STEPS = [
     parts: [[18, 1], [30, 1], [27, 1]], bolts: [['M2.5×5mm 볼트 (십자)', 4, 58]] },
   { id: 'lid-lidar', section: '뚜껑 조립', title: '③ 2D LiDAR 고정', group: 'lid', from: [0, 0, 70], fromById: { lidar: [0, 0, 110] }, view: [1, -1, 1.2],
     text: ['라이다 마운트에 2D LiDAR를 M2×6mm 볼트(십자) 3개로 고정한다.', '옆 프레임에 LiDAR USB 어댑터를 끼우고 LiDAR 케이블을 연결한다.', '마운트를 뚜껑 윗면 구멍에 맞춰 M2.5×5mm 볼트(십자) 4개로 고정한다.'],
-    parts: [[17, 1], [28, 1], [29, 1]], bolts: [['M2×6mm 볼트 (십자)', 3, 56], ['M2.5×5mm 볼트 (십자)', 4, 58]] },
+    parts: [[17, 1], [28, 1], [29, 1]], bolts: [['M2×6mm 볼트 (십자)', 3, 56], ['M2.5×5mm 볼트 (십자)', 4, 58]],
+    notes: [
+      { type: 'redesign', text: '라이다 마운트가 A1M8과 맞지 않습니다. 마운트 윗면(49×58mm)에는 볼트 구멍이 3개 있고, 설명서 그림도 볼트 3개로 고정하는 정사각형 라이다입니다. A1M8은 길이 96.8mm에 바닥 고정 구멍이 4개입니다.' },
+      { type: 'warn', text: 'A1M8은 고정면 아래로 보드가 13.5mm, 모터가 21mm 내려와 평평한 판 위에 바로 앉힐 수 없습니다. 화면에서는 보드 아래 부품이 판에 닿는 높이에 띄워 두었습니다.' },
+    ] },
 
   { id: 'main-bearing', section: '전체 조립', title: '① 바퀴 베어링 끼우기', group: 'main', appear: ['body'], from: 'inY', view: [0.5, -1, 0.9],
     text: ['본체 측면 축에 MR128ZZ 베어링을 끼운다.', '반대쪽도 같은 방법으로 끼운다.'], parts: [[1, 1], [52, 2]] },

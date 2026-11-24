@@ -93,11 +93,13 @@ const pickables = [];
 async function build() {
   const models = await (await fetch('models.json')).json();
   const files = [...new Set(PARTS.filter((p) => p.file).map((p) => p.file))];
+  const sets = [...new Set(PARTS.filter((p) => p.model).map((p) => `model:${p.model}`))];
+  const jobs = [...files.map((f) => [f, models[f]]), ...sets.flatMap((s) => models[s].parts.map((m) => [m.url, m]))];
   const geoms = {};
   let done = 0;
-  await Promise.all(files.map(async (f) => {
-    geoms[f] = await loadStl(models[f]);
-    $('loading-pct').textContent = `${Math.round((++done / files.length) * 100)}%`;
+  await Promise.all(jobs.map(async ([key, meta]) => {
+    geoms[key] = await loadStl(meta);
+    $('loading-pct').textContent = `${Math.round((++done / jobs.length) * 100)}%`;
   }));
   for (const part of PARTS) {
     const node = new THREE.Group();
@@ -107,6 +109,11 @@ async function build() {
       const meta = models[part.file];
       const center = meta.min.map((v, k) => (v + meta.max[k]) / 2);
       meshes.push(new THREE.Mesh(geoms[part.file], material(KINDS[part.kind].color, part)));
+      node.userData.base = baseMatrix(part.tf, center);
+    } else if (part.model) {
+      const set = models[`model:${part.model}`];
+      const center = set.min.map((v, k) => (v + set.max[k]) / 2);
+      for (const m of set.parts) meshes.push(new THREE.Mesh(geoms[m.url], material(m.color, part)));
       node.userData.base = baseMatrix(part.tf, center);
     } else {
       for (const item of part.shape) meshes.push(new THREE.Mesh(shapeGeometry(item), material(item.color || KINDS[part.kind].color, part)));
