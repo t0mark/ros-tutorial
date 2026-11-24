@@ -7,5 +7,6 @@
 | `notion/` | `utils/notion/notion.md`와 Notion 페이지 동기화 | 구현 완료 |
 | `ros/` | ROS 웹 시뮬레이터 소스·빌드 | 구현 완료 |
 | `circuits/` | 공통 회로 데이터, GUI·CLI 및 SVG 출력 | 구현 완료 |
+| `assembly/` | 로봇 청소기 3D 조립 시뮬레이터 소스·빌드 | 구현 완료 |
 
 각 디렉터리의 README에서 실행·빌드 방법을 확인하세요.

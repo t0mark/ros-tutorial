@@ -1,0 +1,9 @@
+{
+  "name": "textbook-assembly",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "node build.mjs", "check": "node check.mjs" },
+  "devDependencies": { "three": "0.170.0" },
+  "engines": { "node": ">=20" }
+}

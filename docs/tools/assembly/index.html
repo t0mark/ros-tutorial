@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>로봇 청소기 조립 시뮬레이터 · 전자 시스템 이론</title>
+<meta name="description" content="바뀐 국내 부품으로 로봇 청소기를 단계별로 조립해 보는 3D 시뮬레이터">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js", "three/addons/": "./vendor/addons/" } }
+</script>
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<header class="topbar">
+ <a class="brand" href="../../index.html" title="교재 목차로">로봇 청소기 조립 시뮬레이터</a>
+ <span class="sub">국내 대체 부품 BOM 기준</span>
+ <nav class="toggles" aria-label="표시 설정">
+  <label><input type="checkbox" id="opt-mark" checked> 바뀐·수정 부품 강조</label>
+  <label><input type="checkbox" id="opt-xray"> 본체 투명</label>
+ </nav>
+</header>
+<main class="studio">
+ <section class="viewport" aria-label="3D 조립 화면">
+  <div id="view"></div>
+  <div id="loading" class="loading">모델 불러오는 중… <span id="loading-pct">0%</span></div>
+  <div id="pick" class="pick" hidden></div>
+  <ul class="legend" aria-label="색 구분">
+   <li><i class="sw pla"></i>3D 프린팅 (PLA)</li>
+   <li><i class="sw tpu"></i>3D 프린팅 (TPU)</li>
+   <li><i class="sw changed"></i>바뀐 부품</li>
+   <li><i class="sw redesign"></i>수정 필요 · 공간 부족</li>
+  </ul>
+  <p class="hint">끌어서 회전 · 휠로 확대 · 부품을 누르면 이름 표시</p>
+ </section>
+ <aside class="panel" aria-live="polite">
+  <div class="step-head">
+   <span id="step-section" class="section"></span>
+   <span id="step-count" class="count"></span>
+  </div>
+  <h1 id="step-title"></h1>
+  <ol id="step-text" class="instructions"></ol>
+  <div id="step-notes" class="notes"></div>
+  <div id="step-parts" class="block"></div>
+  <div id="step-bolts" class="block"></div>
+  <div id="step-tools" class="block"></div>
+  <div class="nav">
+   <button id="prev" type="button">← 이전</button>
+   <button id="replay" type="button" title="이 단계 동작 다시 보기">다시 보기</button>
+   <button id="next" type="button" class="primary">다음 →</button>
+  </div>
+  <details class="toc">
+   <summary>전체 단계</summary>
+   <ol id="toc"></ol>
+  </details>
+ </aside>
+</main>
+</body>
+</html>
