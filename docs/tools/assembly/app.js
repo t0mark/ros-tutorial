@@ -113,7 +113,11 @@ async function build() {
     } else if (part.model) {
       const set = models[`model:${part.model}`];
       const center = set.min.map((v, k) => (v + set.max[k]) / 2);
-      for (const m of set.parts) meshes.push(new THREE.Mesh(geoms[m.url], material(m.color, part)));
+      for (const m of set.parts) {
+        const mat = material(m.color, part);
+        mat.userData.base.alpha = m.alpha ?? 1;
+        meshes.push(new THREE.Mesh(geoms[m.url], mat));
+      }
       node.userData.base = baseMatrix(part.tf, center);
     } else {
       for (const item of part.shape) meshes.push(new THREE.Mesh(shapeGeometry(item), material(item.color || KINDS[part.kind].color, part)));
@@ -138,12 +142,14 @@ function applyLook() {
       mat.emissive.setHex(0x000000);
       if (mark && part.tag) {
         const c = new THREE.Color(MARK[part.tag]);
-        if (part.file) mat.color.lerp(c, 0.7); else mat.emissive.copy(c).multiplyScalar(0.45);
+        // 프린팅 부품은 색을 바꾸고, 실물 모델은 원래 색이 보이게 살짝만 비춘다.
+        if (part.file) mat.color.lerp(c, 0.7); else mat.emissive.copy(c).multiplyScalar(part.model ? 0.14 : 0.45);
       }
       const clear = xray && part.id === 'body';
-      mat.transparent = clear;
-      mat.opacity = clear ? 0.22 : 1;
-      mat.depthWrite = !clear;
+      const alpha = clear ? 0.22 : (mat.userData.base.alpha ?? 1);
+      mat.transparent = alpha < 1;
+      mat.opacity = alpha;
+      mat.depthWrite = alpha === 1;
       mat.needsUpdate = true;
     }
   }

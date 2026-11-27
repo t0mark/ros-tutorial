@@ -1,0 +1,9 @@
+이 폴더의 모델은 utils/assembly/tools/modules.py로 만든 것입니다.
+
+- 기판·몸체: 판매 페이지와 데이터시트 치수로 만든 형상
+- 표면 부품(USB 단자, DC 잭, 단자대, 콘덴서, 인덕터, 칩, 저항, LED, 커넥터, 핀 헤더):
+  KiCad 3D 모델 라이브러리 (https://gitlab.com/kicad/libraries/kicad-packages3D)
+  저작권: KiCad Libraries Team, 라이선스: CC-BY-SA 4.0
+  https://creativecommons.org/licenses/by-sa/4.0/
+
+KiCad 부품 모델을 포함하므로 이 폴더의 모델도 CC-BY-SA 4.0으로 배포합니다.

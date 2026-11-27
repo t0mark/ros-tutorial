@@ -65,14 +65,15 @@ for (const file of [...new Set(PARTS.filter((p) => p.file).map((p) => p.file))])
 // 웹에서 받은 전자 부품 모델: models/<이름>/<색 hex>.stl (색마다 파일 하나)
 for (const name of [...new Set(PARTS.filter((p) => p.model).map((p) => p.model))]) {
   const dir = new URL(`models/${name}/`, here);
-  const files = (await readdir(dir)).filter((f) => /^[0-9a-f]{6}\.stl$/i.test(f)).sort();
+  const files = (await readdir(dir)).filter((f) => /^([0-9a-f]{6}|[0-9a-f]{8})\.stl$/i.test(f)).sort();
   const parts = [];
   const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
   for (const f of files) {
     const { data, meta } = pack(parseStl(await readFile(new URL(f, dir))));
     const out = `models/${name}_${f.replace(/\.stl$/i, '')}.bin`;
     await writeFile(new URL(out, OUT), data);
-    parts.push({ color: `#${f.slice(0, 6)}`, url: out, ...meta });
+    const hex = f.replace(/\.stl$/i, '');
+    parts.push({ color: `#${hex.slice(0, 6)}`, alpha: hex.length === 8 ? parseInt(hex.slice(6), 16) / 255 : 1, url: out, ...meta });
     for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k], meta.min[k]); max[k] = Math.max(max[k], meta.max[k]); }
     total += data.length;
   }

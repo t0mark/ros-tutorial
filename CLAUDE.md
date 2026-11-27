@@ -41,6 +41,6 @@ reference/  # 강의 자료
 
 - 국내 대체 부품 BOM 기준으로 로봇 청소기를 3D 단계별 조립한다(three.js).
 - STL은 `reference/로봇청소기/3d_modeling/`에서 읽어 빌드 때 압축한다. 부품 위치와 단계는 `web/data.js`에 있다.
-- 전자 부품 3D 모델은 `utils/assembly/models/`에 있다. 재배포가 허용된 모델만 넣고, 출처·라이선스를 `models/SOURCES.md`에 적는다.
+- 전자 부품 3D 모델은 `utils/assembly/models/`에 있고 출처·라이선스를 `models/SOURCES.md`에 적는다. 3D 파일이 공개되지 않은 부품은 `tools/modules.py`로 만든다(판매 페이지 치수 + KiCad 3D 부품).
 
 `docs/tools/` 아래 결과물은 빌드 생성물이므로 직접 수정하지 않고 `utils/`에서 수정 후 빌드한다.

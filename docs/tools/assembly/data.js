@@ -3,7 +3,7 @@
 // 본체(obj_5_electronics.stl)의 원래 좌표를 그대로 월드 좌표로 쓴다.
 // 3D 프린팅 부품의 조립 위치는 STL이 출력용 배치라 조립설명서 사진과 본체 형상을 대조해 다시 잡은 값이다.
 // 전자 부품 중 재배포가 허용된 3D 모델을 찾은 것(model)은 그 모델을 쓴다. 출처·라이선스는 models/SOURCES.md.
-// 모델을 찾지 못한 부품은 판매 페이지 치수로 만든 단순 형상(shape)이다.
+// 3D 파일이 공개되지 않은 부품은 tools/modules.py로 만든 모델이다(치수 출처는 models/SOURCES.md). 황동 축만 단순 형상(shape)이다.
 // model 부품의 anchor와 rot는 내려받은 모델 자체 좌표(mm) 기준이다.
 
 // transform: matrix = T(pos) · R · T(-anchor)
@@ -37,7 +37,7 @@ export const PARTS = [
 
   // 먼지통
   { id: 'filter', name: '먼지 필터 (Mi 미니 청소기 헤파 필터)', bom: 44, kind: 'part', tag: 'changed', group: 'bin', step: 'bin-ring',
-    shape: [cyl(24, 31, 'y', [0, -2, 0], C.white), cyl(24, 4, 'y', [0, 15.5, 0], '#9aa1a8')], tf: { pos: [-90, 19.5, 27] } },
+    model: 'filter', tf: { rot: [['x', -90]], anchor: [0, 0, 0], pos: [-90, 18.5, 27] } },
   { id: 'ring', name: '링', bom: 6, kind: 'tpu', tag: 'redesign', group: 'bin', step: 'bin-ring', file: 'ring.stl', tf: { rot: [['x', -90]], anchor: 'center', pos: [-90, 36, 27] } },
   { id: 'bin', name: '먼지통 본체', bom: 2, kind: 'pla', group: 'bin', step: 'bin-filter', file: 'obj_32_tank_latch.stl', tf: { rot: [['z', 90]], anchor: 'center', pos: [-61.5, -26, 26] } },
   { id: 'flap', name: '플랩', bom: 5, kind: 'pla', group: 'bin', step: 'bin-flap', file: 'obj_13_flap.stl', tf: { rot: [['y', -90]], anchor: 'center', pos: [-1.5, -26, 39] } },
@@ -46,16 +46,17 @@ export const PARTS = [
   { id: 'latch-2', name: '잠금장치', bom: 4, kind: 'pla', group: 'bin', step: 'bin-lid', file: 'latch.stl', tf: { rot: [['x', 180]], anchor: 'center', pos: [-58.1, -40.6, 51.05] } },
 
   // 롤러
-  // N20 모델: 몸체 10×12×25(z -24..1), 축이 -z 쪽(z -33..-23). 축이 -y(롤러 쪽)를 보게 눕힌다.
-  { id: 'motor-front', name: 'DC 모터 (Pololu 30:1 HP 6V)', bom: 32, kind: 'part', tag: 'changed', group: 'roller', step: 'prep-motor', model: 'n20', tf: { rot: [['x', -90], ['y', 90]], anchor: [0, 0, -11], pos: [56, 98, 6] } },
-  { id: 'motor-rear', name: 'DC 모터 (Pololu 30:1 HP 6V)', bom: 32, kind: 'part', tag: 'changed', group: 'roller', step: 'prep-motor', model: 'n20', tf: { rot: [['x', -90], ['y', 90]], anchor: [0, 0, -11], pos: [30, 98, 6] } },
+  // Pololu 공식 모델: 기어박스 12×10(z 0..9.72), 모터 뒤끝 z -16.8, 축 끝 z 19(+z). 축이 -y(롤러 쪽)를 보게 눕히고
+  // 기어박스 앞면을 y 86에 맞춘다.
+  { id: 'motor-front', name: 'DC 모터 (Pololu 30:1 HP 6V)', bom: 32, kind: 'part', tag: 'changed', group: 'roller', step: 'prep-motor', model: 'pololu-mmgm', tf: { rot: [['x', 90]], anchor: [0, 0, -2.28], pos: [56, 98, 6] } },
+  { id: 'motor-rear', name: 'DC 모터 (Pololu 30:1 HP 6V)', bom: 32, kind: 'part', tag: 'changed', group: 'roller', step: 'prep-motor', model: 'pololu-mmgm', tf: { rot: [['x', 90]], anchor: [0, 0, -2.28], pos: [30, 98, 6] } },
   { id: 'housing', name: '롤러 하우징', bom: 7, kind: 'pla', group: 'roller', step: 'roller-bolt', file: 'obj_1_body_screw.stl', tf: HOUSING },
   { id: 'shaft-front', name: '롤러 축', bom: 9, kind: 'pla', group: 'roller', step: 'roller-shaft', file: 'obj_8_Body43.stl', tf: { rot: [['z', 90]], anchor: 'center', pos: [56, -1, 6] } },
   { id: 'shaft-rear', name: '롤러 축', bom: 9, kind: 'pla', group: 'roller', step: 'roller-shaft', file: 'obj_9_Body42.stl', tf: { rot: [['z', 90]], anchor: 'center', pos: [30, -1, 6] } },
   { id: 'brush-2', name: '롤러 브러시 2 (앞)', bom: 11, kind: 'tpu', group: 'roller', step: 'roller-brush', file: 'roller_2.stl', tf: { rot: [['x', -90]], anchor: 'center', pos: [56, 0, 6] } },
   { id: 'brush-1', name: '롤러 브러시 1 (뒤)', bom: 10, kind: 'tpu', group: 'roller', step: 'roller-brush', file: 'roller_1.stl', tf: { rot: [['x', -90]], anchor: 'center', pos: [30, 0, 6] } },
-  { id: 'brg-roller-f', name: '베어링 MR128ZZ', bom: 52, kind: 'part', group: 'roller', step: 'roller-bearing', shape: [tube(6, 4, 3.5, 'y', [0, 0, 0], C.metal)], tf: { pos: [56, -87, 6] } },
-  { id: 'brg-roller-r', name: '베어링 MR128ZZ', bom: 52, kind: 'part', group: 'roller', step: 'roller-bearing', shape: [tube(6, 4, 3.5, 'y', [0, 0, 0], C.metal)], tf: { pos: [30, -87, 6] } },
+  { id: 'brg-roller-f', name: '베어링 MR128ZZ', bom: 52, kind: 'part', group: 'roller', step: 'roller-bearing', model: 'mr128zz', tf: { rot: [['x', 90]], anchor: [0, 0, 0], pos: [56, -87, 6] } },
+  { id: 'brg-roller-r', name: '베어링 MR128ZZ', bom: 52, kind: 'part', group: 'roller', step: 'roller-bearing', model: 'mr128zz', tf: { rot: [['x', 90]], anchor: [0, 0, 0], pos: [30, -87, 6] } },
   { id: 'motor-plate', name: '모터 고정판', bom: 8, kind: 'pla', group: 'roller', step: 'roller-plate', file: 'obj_1_cap_screw.stl', tf: HOUSING },
 
   // 바퀴
@@ -69,50 +70,51 @@ export const PARTS = [
 
   // 캐스터
   { id: 'caster-wheel', name: '캐스터 휠', bom: 15, kind: 'pla', group: 'caster', step: 'caster-bearing', file: 'obj_12_Body1.stl', tf: { rot: [['x', 90]], anchor: 'center', pos: [97, 0, 3] } },
-  { id: 'brg-caster-1', name: '베어링 MR52ZZ', bom: 51, kind: 'part', group: 'caster', step: 'caster-bearing', shape: [tube(2.5, 1, 2.5, 'y', [0, 0, 0], C.metal)], tf: { pos: [97, 9.8, 3] } },
-  { id: 'brg-caster-2', name: '베어링 MR52ZZ', bom: 51, kind: 'part', group: 'caster', step: 'caster-bearing', shape: [tube(2.5, 1, 2.5, 'y', [0, 0, 0], C.metal)], tf: { pos: [97, -9.8, 3] } },
+  { id: 'brg-caster-1', name: '베어링 MR52ZZ', bom: 51, kind: 'part', group: 'caster', step: 'caster-bearing', model: 'mr52zz', tf: { rot: [['x', 90]], anchor: [0, 0, 0], pos: [97, 9.8, 3] } },
+  { id: 'brg-caster-2', name: '베어링 MR52ZZ', bom: 51, kind: 'part', group: 'caster', step: 'caster-bearing', model: 'mr52zz', tf: { rot: [['x', 90]], anchor: [0, 0, 0], pos: [97, -9.8, 3] } },
   { id: 'caster-housing', name: '캐스터 하우징', bom: 14, kind: 'pla', group: 'caster', step: 'caster-wheel', file: 'obj_11_Body1.stl', tf: { rot: [['x', 180]], anchor: 'center', pos: [97, 0, 4.5] } },
   { id: 'brass', name: '황동 축 Ø2×33mm', bom: 54, kind: 'part', group: 'caster', step: 'caster-wheel', shape: [cyl(1, 33, 'y', [0, 0, 0], C.brass)], tf: { pos: [97, 0, 3] } },
-  { id: 'thrust', name: '스러스트 베어링 F10-18M', bom: 53, kind: 'part', group: 'caster', step: 'caster-thrust', shape: [tube(9, 5, 5.5, 'z', [0, 0, 0], C.metal)], tf: { pos: [97, 0, 17.75] } },
+  { id: 'thrust', name: '스러스트 베어링 F10-18M', bom: 53, kind: 'part', group: 'caster', step: 'caster-thrust', model: 'f10-18m', tf: { anchor: [0, 0, 0], pos: [97, 0, 17.75] } },
 
   // 뚜껑
   { id: 'lid', name: '뚜껑', bom: 16, kind: 'pla', group: 'lid', step: 'lid-switch', file: 'obj_35_plate.stl', tf: LID },
   { id: 'switch', name: '전원 스위치 (R16-503AD-R)', bom: 37, kind: 'part', tag: 'changed', group: 'lid', step: 'lid-switch',
-    shape: [cyl(10, 2, 'z', [0, 0, 1], C.dark), cyl(7, 4, 'z', [0, 0, 4], C.red), cyl(8, 26, 'z', [0, 0, -13], C.dark), box([12, 4, 6], [0, 0, -29], C.metal)], tf: { pos: [76, -3, 60] } },
+    model: 'r16', tf: { anchor: [0, 0, 0], pos: [76, -3, 60] } },
   { id: 'bracket', name: '전자부품 브래킷', bom: 18, kind: 'pla', group: 'lid', step: 'lid-boards', file: 'obj_35_electronics_bracket.stl', tf: ON_LID },
   { id: 'conv-2', name: '강압 컨버터 ② (SZH-EK366)', bom: 30, kind: 'part', group: 'lid', step: 'lid-boards',
-    shape: [box([21, 43, 1.6], [0, 0, -6], C.blue), box([12, 12, 7], [0, 6, -1.5], C.dark), box([8, 8, 10], [0, -12, -0.2], C.dark)], tf: { pos: [-37, 4, 68] } },
+    model: 'ek366', tf: { rot: [['z', 90]], anchor: [0, 0, 0.8], pos: [-37, 4, 62] } },
   { id: 'rpi', name: '라즈베리 파이 5', bom: 27, kind: 'part', group: 'lid', step: 'lid-boards',
     // 공식 STEP: 기판 x 0..85, y 0..56, 윗면 z 1.3. USB·LAN 단자가 +y 쪽을 보게 돌린다.
     model: 'rpi5', tf: { rot: [['z', 90]], anchor: [42.5, 28, 0.65], pos: [-37, 4, 78] } },
   { id: 'lidar-mount', name: '라이다 마운트', bom: 17, kind: 'pla', tag: 'redesign', group: 'lid', step: 'lid-lidar', file: 'obj_35_lidar_mount.stl', tf: ON_LID },
-  // 모델 원점 = 헤드 회전축의 스캔 평면, 고정면은 21mm 아래, 보드 아래 부품은 34.5mm 아래(glTF y 위쪽)
+  // 모델(z 위쪽): 원점 = 헤드 회전축의 스캔 평면, 모터는 +x 쪽, 고정면은 21mm 아래, 보드 아래 부품은 38.6mm 아래
   // 마운트 윗면(z 85) 중앙에 헤드 축을 두고, 보드 아래 부품이 윗면에 닿게 띄운다. 모터는 -y 쪽으로 판 밖에 걸린다.
   { id: 'lidar', name: '2D LiDAR (A1M8-R6)', bom: 28, kind: 'part', group: 'lid', step: 'lid-lidar',
-    model: 'rplidar-a1', tf: { rot: [['x', 90], ['z', 90]], anchor: [0, 0, 0], pos: [58, 16, 119.5] } },
+    model: 'rplidar-a1', tf: { rot: [['z', -90]], anchor: [0, 0, 0], pos: [58, 16, 123.6] } },
 
   // 본체 안쪽 (1층)
-  { id: 'brg-wheel-l', name: '베어링 MR128ZZ', bom: 52, kind: 'part', group: 'main', step: 'main-bearing', shape: [tube(6, 4, 3.5, 'y', [0, 0, 0], C.metal)], tf: { pos: [-12, 114.5, 23] } },
-  { id: 'brg-wheel-r', name: '베어링 MR128ZZ', bom: 52, kind: 'part', group: 'main', step: 'main-bearing', shape: [tube(6, 4, 3.5, 'y', [0, 0, 0], C.metal)], tf: { pos: [-12, -114.5, 23] } },
+  { id: 'brg-wheel-l', name: '베어링 MR128ZZ', bom: 52, kind: 'part', group: 'main', step: 'main-bearing', model: 'mr128zz', tf: { rot: [['x', 90]], anchor: [0, 0, 0], pos: [-12, 114.5, 23] } },
+  { id: 'brg-wheel-r', name: '베어링 MR128ZZ', bom: 52, kind: 'part', group: 'main', step: 'main-bearing', model: 'mr128zz', tf: { rot: [['x', 90]], anchor: [0, 0, 0], pos: [-12, -114.5, 23] } },
   { id: 'suction', name: '흡입 모터 (MB3650-SUC)', bom: 38, kind: 'part', tag: 'changed', group: 'main', step: 'main-suction',
-    shape: [cyl(19.25, 44, 'x', [3, 0, 0], C.metal), cyl(19.25, 6, 'x', [-22, 0, 0], C.dark), cyl(1.5, 6, 'x', [28, 0, 0], C.metal)], tf: { pos: [-66, 73, 24.3] } },
+    // 팬 하우징 Ø38.5(제조사 표기) + 뒤쪽 모터 캔(사진 비례로 잡은 근사값). 흡입구가 -x(먼지통 쪽)를 본다.
+    model: 'mb3650', tf: { anchor: [0, 0, 0], pos: [-66, 73, 24.3] } },
   { id: 'turbine-cap', name: '스크류모터 고정 뚜껑', bom: 22, kind: 'pla', tag: 'redesign', group: 'main', step: 'main-suction-cap', file: 'obj_36_turbine holder.stl', tf: { rot: [['x', 180], ['z', 90]], anchor: 'center', pos: [-66, 73, 39] } },
   { id: 'tb6612', name: '모터 드라이버 (TB6612FNG, SZH-MDBL-003)', bom: 31, kind: 'part', tag: 'changed', group: 'main', step: 'main-boards',
-    shape: [box([21, 1.6, 21], [0, 0, 0], C.red), box([7, 3, 4], [0, -2, 2], C.black), box([21, 2.5, 2.5], [0, 0, -11.5], C.black)], tf: { pos: [93.5, 0, 37] } },
+    model: 'tb6612', tf: { rot: [['x', 90]], anchor: [0, 0, 0.8], pos: [93.5, 0, 37] } },
   { id: 'conv-1', name: '강압 컨버터 ① (SZH-EK366)', bom: 30, kind: 'part', group: 'main', step: 'main-boards',
-    shape: [box([1.6, 40, 21], [-5, 0, 0], C.blue), box([7, 12, 12], [-0.5, 6, 0], C.dark)], tf: { pos: [70, 5, 37] } },
+    // 기판을 세워 부품 면이 +x를 보게 한다.
+    model: 'ek366', tf: { rot: [['z', 90], ['y', 90]], anchor: [0, 0, 0.8], pos: [65, 5, 37] } },
+  // DFR0457: 기판 44×32mm(DFRobot 위키), 검은 기판에 3핀 나사 단자대와 PH2.0 3핀 커넥터
   { id: 'mosfet', name: 'MOSFET 모듈 (DFR0457)', bom: 39, kind: 'part', tag: 'changed', group: 'main', step: 'main-boards',
-    shape: [box([22, 30, 1.6], [0, 0, 0], C.blue), box([8, 10, 9], [0, 9, 5], '#2f8f4e'), box([6, 6, 4], [0, -6, 2.8], C.black)], tf: { pos: [12, -15, 41.8] } },
+    model: 'dfr0457', tf: { anchor: [0, 0, 0.8], pos: [12, -15, 41.8] } },
   { id: 'pack', name: '배터리 홀더 + 18650 셀 ×3', bom: 41, kind: 'part', tag: 'clash', group: 'battery', step: 'battery-pack',
-    shape: [box([59.7, 77.7, 2], [0, 0, -9.65], C.black), box([59.7, 2, 21.3], [0, 37.85, 0], C.black), box([59.7, 2, 21.3], [0, -37.85, 0], C.black),
-      cyl(9.3, 65, 'y', [-19.3, 0, 0.4], C.cell), cyl(9.3, 65, 'y', [0, 0, 0.4], C.cell), cyl(9.3, 65, 'y', [19.3, 0, 0.4], C.cell)],
-    tf: { pos: [92, -78, 12.65] } },
-  { id: 'bms', name: '3S 보호회로 (SZH-18650M005)', bom: 42, kind: 'part', tag: 'changed', group: 'battery', step: 'battery-pack', shape: [box([45, 56, 1.6], [0, 0, 0], C.blue), box([10, 8, 3], [12, 20, 2], C.dark)], tf: { pos: [92, -78, 25] } },
-  { id: 'charger', name: '3S 충전 모듈 (SZH-MIN012)', bom: 43, kind: 'part', tag: 'changed', group: 'battery', step: 'battery-pack', shape: [box([20, 22, 1.6], [0, 0, 0], C.blue), box([9, 7, 3.3], [0, -8, 2.4], C.metal)], tf: { pos: [79, -110, 44] } },
-  { id: 'wago-12a', name: 'WAGO 221-415 (12V 분배)', bom: 45, kind: 'part', group: 'main', step: 'main-wiring', shape: [box([20.2, 18.4, 8.5], [0, 0, 0], C.wago)], tf: { pos: [12, -65, 45.3] } },
-  { id: 'wago-12b', name: 'WAGO 221-415 (12V 분배)', bom: 45, kind: 'part', group: 'main', step: 'main-wiring', shape: [box([20.2, 18.4, 8.5], [0, 0, 0], C.wago)], tf: { pos: [12, -42, 45.3] } },
-  { id: 'wago-5a', name: 'WAGO 221-415 (5V 분배)', bom: 45, kind: 'part', group: 'main', step: 'main-wiring', shape: [box([20.2, 18.4, 8.5], [0, 0, 0], C.wago)], tf: { pos: [12, 15, 45.3] } },
-  { id: 'wago-5b', name: 'WAGO 221-415 (5V 분배)', bom: 45, kind: 'part', group: 'main', step: 'main-wiring', shape: [box([20.2, 18.4, 8.5], [0, 0, 0], C.wago)], tf: { pos: [12, 38, 45.3] } },
+    model: 'holder3s', tf: { anchor: [0, 0, 10.65], pos: [92, -78, 12.65] } },
+  { id: 'bms', name: '3S 보호회로 (SZH-18650M005)', bom: 42, kind: 'part', tag: 'changed', group: 'battery', step: 'battery-pack', model: 'bms3s', tf: { anchor: [0, 0, 0.8], pos: [92, -78, 25] } },
+  { id: 'charger', name: '3S 충전 모듈 (SZH-MIN012)', bom: 43, kind: 'part', tag: 'changed', group: 'battery', step: 'battery-pack', model: 'min012', tf: { anchor: [0, 0, 0.8], pos: [79, -110, 44] } },
+  { id: 'wago-12a', name: 'WAGO 221-415 (12V 분배)', bom: 45, kind: 'part', group: 'main', step: 'main-wiring', model: 'wago221', tf: { anchor: [0, 0, 4.2], pos: [12, -65, 45.3] } },
+  { id: 'wago-12b', name: 'WAGO 221-415 (12V 분배)', bom: 45, kind: 'part', group: 'main', step: 'main-wiring', model: 'wago221', tf: { anchor: [0, 0, 4.2], pos: [12, -42, 45.3] } },
+  { id: 'wago-5a', name: 'WAGO 221-415 (5V 분배)', bom: 45, kind: 'part', group: 'main', step: 'main-wiring', model: 'wago221', tf: { anchor: [0, 0, 4.2], pos: [12, 15, 45.3] } },
+  { id: 'wago-5b', name: 'WAGO 221-415 (5V 분배)', bom: 45, kind: 'part', group: 'main', step: 'main-wiring', model: 'wago221', tf: { anchor: [0, 0, 4.2], pos: [12, 38, 45.3] } },
 ];
 
 // group: 그 단계에서 보여 줄 범위(all = 전체, main = 본체와 이미 합친 하위 조립품)
@@ -196,7 +198,7 @@ export const STEPS = [
     parts: [[17, 1], [28, 1], [29, 1]], bolts: [['M2×6mm 볼트 (십자)', 3, 56], ['M2.5×5mm 볼트 (십자)', 4, 58]],
     notes: [
       { type: 'redesign', text: '라이다 마운트가 A1M8과 맞지 않습니다. 마운트 윗면(49×58mm)에는 볼트 구멍이 3개 있고, 설명서 그림도 볼트 3개로 고정하는 정사각형 라이다입니다. A1M8은 길이 96.8mm에 바닥 고정 구멍이 4개입니다.' },
-      { type: 'warn', text: 'A1M8은 고정면 아래로 보드가 13.5mm, 모터가 21mm 내려와 평평한 판 위에 바로 앉힐 수 없습니다. 화면에서는 보드 아래 부품이 판에 닿는 높이에 띄워 두었습니다.' },
+      { type: 'warn', text: 'A1M8은 고정면 아래로 보드 부품이 약 17mm, 모터가 21mm 내려와 평평한 판 위에 바로 앉힐 수 없습니다. 화면에서는 보드 아래 부품이 판에 닿는 높이에 띄워 두었습니다.' },
     ] },
 
   { id: 'main-bearing', section: '전체 조립', title: '① 바퀴 베어링 끼우기', group: 'main', appear: ['body'], from: 'inY', view: [0.5, -1, 0.9],
